@@ -13,9 +13,7 @@ const Header = () => {
             </span>
           </Link>
         </div>
-        <div className="hidden md:block">
-        </div>
-            <Menu />
+        <Menu />
       </div>
     </header>
   );
