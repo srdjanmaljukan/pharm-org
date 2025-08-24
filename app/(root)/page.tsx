@@ -6,9 +6,16 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { getAllOrders } from "@/lib/actions/order.actions";
 import Link from "next/link";
 
-export default function Home() {
+// Limit for recent orders
+const LIMIT = 10;
+
+export default async function Home() {
+
+  const latestOrders = await getAllOrders(LIMIT);
+
   return (
     <div className="flex items-center w-full justify-evenly mt-20">
       <Card className="w-full max-w-md">
@@ -21,13 +28,13 @@ export default function Home() {
           </CardAction>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col">
-            <div>Porudžbina 1</div>
-            <div>Porudžbina 2</div>
-            <div>Porudžbina 3</div>
-            <div>Porudžbina 4</div>
-            <div>Porudžbina 5</div>
-          </div>
+          {latestOrders.map((order) => (
+            <div key={order.id} className="">
+              <div>{order.productName}</div>
+              <div>{order.status}</div>
+              <div>{order.updatedById}</div>
+            </div>
+          ))}
         </CardContent>
       </Card>
       <Card className="w-full max-w-md">

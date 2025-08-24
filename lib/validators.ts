@@ -8,3 +8,9 @@ export const insertOrderSchema = z.object({
     personName: z.string().optional(),
     note: z.string().optional(),
 })
+
+// Schema for signing users in
+export const signInFormSchema = z.object({
+  email: z.email("Invalid email address"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+});

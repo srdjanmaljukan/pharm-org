@@ -10,14 +10,14 @@ datasource db {
 }
 
 enum OrderStatus {
-  kreirano
-  poručeno
-  stiglo
-  javljeno
-  prokucanoNijeNaplaćeno
-  naplaćenoNijeProkucano
-  ostalo
-  završeno
+  Kreirano
+  Poručeno
+  Stiglo
+  Javljeno
+  ProkucanoNijeNaplaćeno
+  NaplaćenoNijeProkucano
+  Ostalo
+  Završeno
 }
 
 model Order {
@@ -27,12 +27,12 @@ model Order {
   phoneNumber String
   personName  String?
   note        String?
-  status      OrderStatus @default(kreirano)
+  status      OrderStatus @default(Kreirano)
   distributor String?
   createdAt   DateTime    @default(now()) @db.Timestamp(6)
   updatedAt   DateTime    @updatedAt
-  updatedById String?     @db.Uuid
-  updatedBy   Worker?     @relation(fields: [updatedById], references: [id])
+  updatedById String      @db.Uuid
+  updatedBy   Worker      @relation(fields: [updatedById], references: [id])
 }
 
 model User {

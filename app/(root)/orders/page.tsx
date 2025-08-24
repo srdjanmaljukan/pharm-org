@@ -8,6 +8,11 @@ import {
 } from "@/components/ui/table";
 import { getAllOrders } from "@/lib/actions/order.actions";
 import { formatDateTime } from "@/lib/utils";
+import { Metadata } from "next";
+
+export const metadata: Metadata = {
+    title: "Porudžbine"
+}
 
 const OrdersPage = async () => {
 
