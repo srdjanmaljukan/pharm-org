@@ -1,39 +1,55 @@
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { getAllOrders } from "@/lib/actions/order.actions";
+import { formatDateTime } from "@/lib/utils";
 
-const OrdersPage = () => {
-    return ( 
-        <div className="space-y-2">
-        <div className="overflow-x-auto">
+const OrdersPage = async () => {
+
+    const orders = await getAllOrders();
+
+  return (
+    <div className="space-y-2">
+      <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>ID</TableHead>
-              <TableHead>DATE</TableHead>
-              <TableHead>BUYER</TableHead>
-              <TableHead>TOTAL</TableHead>
-              <TableHead>PAID</TableHead>
-              <TableHead>DELIVERED</TableHead>
-              <TableHead>ACTIONS</TableHead>
+              <TableHead>IME PREPARATA</TableHead>
+              <TableHead>KOLIČINA</TableHead>
+              <TableHead>BROJ TELEFONA</TableHead>
+              <TableHead>IME OSOBE</TableHead>
+              <TableHead>KOMENTAR</TableHead>
+              <TableHead>DOBAVLJAČ</TableHead>
+              <TableHead>DATUM</TableHead>
+              <TableHead>STATUS</TableHead>
+              <TableHead>OPCIJE</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {orders.data.map((order) => (
+            {orders.map((order) => (
               <TableRow key={order.id}>
-                <TableCell>{formatId(order.id)}</TableCell>
+                <TableCell>{order.productName}</TableCell>
                 <TableCell>
-                  {formatDateTime(order.createdAt).dateTime}
+                  {order.qty}
                 </TableCell>
-                <TableCell>{order.user.name}</TableCell>
-                <TableCell>{formatCurrency(order.totalPrice)}</TableCell>
+                <TableCell>{order.phoneNumber}</TableCell>
+                <TableCell>{order.personName ? order.personName : ""}</TableCell>
                 <TableCell>
-                  {order.isPaid && order.paidAt
-                    ? formatDateTime(order.paidAt).dateTime
-                    : "Not Paid"}
+                  {order.note ? order.note : ""}
                 </TableCell>
                 <TableCell>
-                  {order.isDelivered && order.deliveredAt
-                    ? formatDateTime(order.deliveredAt).dateTime
-                    : "Not Delivered"}
+                  {order.distributor ? order.distributor : ""}
+                </TableCell>
+                <TableCell>
+                  {formatDateTime(order.createdAt).dateOnly}
+                </TableCell>
+                <TableCell>
+                  {order.status}
                 </TableCell>
                 <TableCell>
                   {/* Button for details and delete dialog */}
@@ -43,8 +59,8 @@ const OrdersPage = () => {
           </TableBody>
         </Table>
       </div>
-      </div>
-     );
-}
- 
+    </div>
+  );
+};
+
 export default OrdersPage;
