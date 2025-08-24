@@ -1,12 +1,7 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
-  provider = "prisma-client-js"
-  output   = "../lib/generated/prisma"
+  provider        = "prisma-client-js"
+  output          = "../lib/generated/prisma"
+  previewFeatures = ["driverAdapters"]
 }
 
 datasource db {
@@ -26,7 +21,7 @@ enum OrderStatus {
 }
 
 model Order {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   productName String
   qty         Int
   phoneNumber String
@@ -34,10 +29,10 @@ model Order {
   note        String?
   status      OrderStatus @default(kreirano)
   distributor String?
-  createdAt   DateTime @default(now()) @db.Timestamp(6)
-  updatedAt   DateTime @updatedAt
-  updatedById String? @db.Uuid
-  updatedBy   Worker?  @relation(fields: [updatedById], references: [id])
+  createdAt   DateTime    @default(now()) @db.Timestamp(6)
+  updatedAt   DateTime    @updatedAt
+  updatedById String?     @db.Uuid
+  updatedBy   Worker?     @relation(fields: [updatedById], references: [id])
 }
 
 model User {
@@ -93,7 +88,7 @@ model VerificationToken {
 
 model Worker {
   id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId       String @db.Uuid
+  userId       String  @db.Uuid
   name         String
   password     String
   role         String

@@ -16,7 +16,7 @@ export default function Home() {
           <CardTitle>Nedavne porudžbine</CardTitle>
           <CardAction>
             <Button asChild>
-              <Link href="/">Vidi sve</Link>
+              <Link href="/orders">Vidi sve</Link>
             </Button>
           </CardAction>
         </CardHeader>
