@@ -470,7 +470,7 @@ export default function ReclamationsClient({ reclamations: initialData }: Props)
                           {STATUS_LABELS[entry.status]}
                         </span>
                         {entry.note && (
-                          <p className="text-xs text-muted-foreground mt-1 italic">"{entry.note}"</p>
+                          <p className="text-xs text-muted-foreground mt-1 italic">&ldquo;{entry.note}&rdquo;</p>
                         )}
                         <div className="flex items-center gap-2 mt-1.5">
                           <span className="text-xs font-medium">{entry.changedBy.name}</span>
