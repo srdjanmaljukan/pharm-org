@@ -123,15 +123,16 @@ model Worker {
   user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // Akcije koje je ovaj radnik radio
-  orders             Order[]              @relation("OrderUpdatedBy")
-  orderHistory       OrderHistory[]       @relation("OrderHistoryWorker")
-  internalOrders     InternalOrder[]      @relation("InternalOrderUpdatedBy")
-  reclamations       Reclamation[]        @relation("ReclamationUpdatedBy")
-  reclamationHistory ReclamationHistory[] @relation("ReclamationHistoryWorker")
-  notifications      Notification[]       @relation("NotificationCreatedBy")
-  targetSales        TargetSaleEntry[]    @relation("TargetSaleEntryBy")
-  slipperUpdates     SlipperStock[]       @relation("SlipperUpdatedBy")
-  weekendShifts      WeekendShift[]
+  orders               Order[]                @relation("OrderUpdatedBy")
+  orderHistory         OrderHistory[]         @relation("OrderHistoryWorker")
+  internalOrders       InternalOrder[]        @relation("InternalOrderUpdatedBy")
+  internalOrderHistory InternalOrderHistory[] @relation("InternalOrderHistoryWorker")
+  reclamations         Reclamation[]          @relation("ReclamationUpdatedBy")
+  reclamationHistory   ReclamationHistory[]   @relation("ReclamationHistoryWorker")
+  notifications        Notification[]         @relation("NotificationCreatedBy")
+  targetSales          TargetSaleEntry[]      @relation("TargetSaleEntryBy")
+  slipperUpdates       SlipperStock[]         @relation("SlipperUpdatedBy")
+  weekendShifts        WeekendShift[]
 }
 
 // ─────────────────────────────────────────────
@@ -171,16 +172,28 @@ model OrderHistory {
 // ─────────────────────────────────────────────
 
 model InternalOrder {
-  id          String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id          String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   productName String
   qty         Int
   distributor String?
   note        String?
-  status      InternalOrderStatus @default(Kreirano)
-  createdAt   DateTime            @default(now()) @db.Timestamp(6)
-  updatedAt   DateTime            @updatedAt
-  updatedById String              @db.Uuid
-  updatedBy   Worker              @relation("InternalOrderUpdatedBy", fields: [updatedById], references: [id])
+  status      InternalOrderStatus    @default(Kreirano)
+  createdAt   DateTime               @default(now()) @db.Timestamp(6)
+  updatedAt   DateTime               @updatedAt
+  updatedById String                 @db.Uuid
+  updatedBy   Worker                 @relation("InternalOrderUpdatedBy", fields: [updatedById], references: [id])
+  history     InternalOrderHistory[]
+}
+
+model InternalOrderHistory {
+  id              String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  internalOrderId String              @db.Uuid
+  status          InternalOrderStatus
+  note            String?
+  changedAt       DateTime            @default(now()) @db.Timestamp(6)
+  changedById     String              @db.Uuid
+  internalOrder   InternalOrder       @relation(fields: [internalOrderId], references: [id], onDelete: Cascade)
+  changedBy       Worker              @relation("InternalOrderHistoryWorker", fields: [changedById], references: [id])
 }
 
 // ─────────────────────────────────────────────
