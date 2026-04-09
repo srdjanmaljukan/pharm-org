@@ -1,27 +1,33 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { OrderStatus } from "@/lib/generated/prisma";
-import { createOrder, updateOrderStatus, getOrderHistory } from "@/lib/actions/order.actions";
+import { ReclamationStatus } from "@/lib/generated/prisma";
+import {
+  createReclamation,
+  updateReclamationStatus,
+  getReclamationHistory,
+} from "@/lib/actions/reclamation.actions";
 import PinModal, { VerifiedWorker } from "@/components/shared/pin-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Search, X, ChevronDown, ChevronUp, Filter, History, User } from "lucide-react";
+import {
+  Plus, Search, X, Filter, History, User,
+  ChevronDown, ChevronUp,
+} from "lucide-react";
 
 // ─── Tipovi ───────────────────────────────────────────────────────────────────
 
 type Worker = { id: string; name: string };
 
-type Order = {
+type Reclamation = {
   id: string;
   productName: string;
+  distributor: string;
   qty: number;
-  phoneNumber: string;
-  personName: string | null;
+  reason: string;
   note: string | null;
-  status: OrderStatus;
-  distributor: string | null;
+  status: ReclamationStatus;
   createdAt: Date;
   updatedAt: Date;
   updatedById: string;
@@ -30,47 +36,40 @@ type Order = {
 
 type HistoryEntry = {
   id: string;
-  status: OrderStatus;
+  status: ReclamationStatus;
   note: string | null;
   changedAt: Date;
   changedBy: Worker;
 };
 
-type Props = { orders: Order[] };
+type Props = { reclamations: Reclamation[] };
 
 // ─── Konstante ────────────────────────────────────────────────────────────────
 
-const STATUS_LABELS: Record<OrderStatus, string> = {
-  Kreirano:               "Kreirano",
-  Poručeno:               "Poručeno",
-  Stiglo:                 "Stiglo",
-  Javljeno:               "Javljeno",
-  NeJavljaSe:             "Ne javlja se",
-  ProkucanoNijeNaplaćeno: "Prokucano / nije naplaćeno",
-  NaplaćenoNijeProkucano: "Naplaćeno / nije prokucano",
-  Ostalo:                 "Ostalo",
-  Završeno:               "Završeno",
+const STATUS_LABELS: Record<ReclamationStatus, string> = {
+  Otvorena:   "Otvorena",
+  UProcesу:   "U procesu",
+  Riješena:   "Riješena",
+  Odbijena:   "Odbijena",
 };
 
-const STATUS_COLORS: Record<OrderStatus, string> = {
-  Kreirano:               "bg-blue-100 text-blue-800",
-  Poručeno:               "bg-yellow-100 text-yellow-800",
-  Stiglo:                 "bg-green-100 text-green-800",
-  Javljeno:               "bg-purple-100 text-purple-800",
-  NeJavljaSe:             "bg-red-100 text-red-800",
-  ProkucanoNijeNaplaćeno: "bg-orange-100 text-orange-800",
-  NaplaćenoNijeProkucano: "bg-orange-100 text-orange-800",
-  Ostalo:                 "bg-gray-100 text-gray-700",
-  Završeno:               "bg-emerald-100 text-emerald-800",
+const STATUS_COLORS: Record<ReclamationStatus, string> = {
+  Otvorena:  "bg-red-100 text-red-800",
+  UProcesу:  "bg-yellow-100 text-yellow-800",
+  Riješena:  "bg-emerald-100 text-emerald-800",
+  Odbijena:  "bg-gray-100 text-gray-700",
 };
 
 const PAGE_SIZE = 25;
-const emptyForm = { productName: "", qty: "1", phoneNumber: "", personName: "", note: "", distributor: "" };
+
+const emptyForm = {
+  productName: "", distributor: "", qty: "1", reason: "", note: "",
+};
 
 // ─── Komponenta ───────────────────────────────────────────────────────────────
 
-export default function OrdersClient({ orders: initialOrders }: Props) {
-  const [orders, setOrders] = useState<Order[]>(initialOrders);
+export default function ReclamationsClient({ reclamations: initialData }: Props) {
+  const [reclamations, setReclamations] = useState<Reclamation[]>(initialData);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [formError, setFormError] = useState("");
@@ -78,37 +77,42 @@ export default function OrdersClient({ orders: initialOrders }: Props) {
   const [pinOpen, setPinOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<
     | { type: "create"; data: typeof emptyForm }
-    | { type: "status"; orderId: string; status: OrderStatus }
+    | { type: "status"; id: string; status: ReclamationStatus }
     | null
   >(null);
 
-  const [historyOrder, setHistoryOrder] = useState<Order | null>(null);
+  const [historyRec, setHistoryRec] = useState<Reclamation | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
 
   const [search, setSearch] = useState("");
-  const [filterStatus, setFilterStatus] = useState<OrderStatus | "sve">("sve");
+  const [filterStatus, setFilterStatus] = useState<ReclamationStatus | "sve">("sve");
   const [page, setPage] = useState(1);
 
+  // ── Filtriranje ────────────────────────────────────────────────────────────
+
   const filtered = useMemo(() => {
-    return orders.filter((o) => {
+    return reclamations.filter((r) => {
       const matchSearch =
         !search ||
-        o.productName.toLowerCase().includes(search.toLowerCase()) ||
-        o.personName?.toLowerCase().includes(search.toLowerCase()) ||
-        o.phoneNumber.includes(search);
-      const matchStatus = filterStatus === "sve" || o.status === filterStatus;
+        r.productName.toLowerCase().includes(search.toLowerCase()) ||
+        r.distributor.toLowerCase().includes(search.toLowerCase()) ||
+        r.reason.toLowerCase().includes(search.toLowerCase());
+      const matchStatus = filterStatus === "sve" || r.status === filterStatus;
       return matchSearch && matchStatus;
     });
-  }, [orders, search, filterStatus]);
+  }, [reclamations, search, filterStatus]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  // ── Forma ──────────────────────────────────────────────────────────────────
 
   const validateForm = () => {
-    if (!form.productName.trim()) return "Naziv preparata je obavezan.";
-    if (!form.phoneNumber.trim()) return "Broj telefona je obavezan.";
-    if (!form.qty || Number(form.qty) < 1) return "Količina mora biti najmanje 1.";
+    if (!form.productName.trim()) return "Naziv artikla je obavezan.";
+    if (!form.distributor.trim()) return "Dobavljač je obavezan.";
+    if (!form.reason.trim()) return "Razlog reklamacije je obavezan.";
+    if (Number(form.qty) < 1) return "Količina mora biti najmanje 1.";
     return null;
   };
 
@@ -120,10 +124,12 @@ export default function OrdersClient({ orders: initialOrders }: Props) {
     setPinOpen(true);
   };
 
-  const handleStatusChange = (orderId: string, status: OrderStatus) => {
-    setPendingAction({ type: "status", orderId, status });
+  const handleStatusChange = (id: string, status: ReclamationStatus) => {
+    setPendingAction({ type: "status", id, status });
     setPinOpen(true);
   };
+
+  // ── PIN potvrđen ───────────────────────────────────────────────────────────
 
   const handlePinSuccess = async (worker: VerifiedWorker) => {
     setPinOpen(false);
@@ -133,9 +139,9 @@ export default function OrdersClient({ orders: initialOrders }: Props) {
       const fd = new FormData();
       Object.entries(pendingAction.data).forEach(([k, v]) => fd.set(k, v));
       fd.set("workerId", worker.id);
-      const result = await createOrder(fd);
-      if (result.success && result.order) {
-        setOrders((prev) => [result.order as Order, ...prev]);
+      const result = await createReclamation(fd);
+      if (result.success && result.reclamation) {
+        setReclamations((prev) => [result.reclamation as Reclamation, ...prev]);
         setForm(emptyForm);
         setShowForm(false);
       } else {
@@ -144,13 +150,13 @@ export default function OrdersClient({ orders: initialOrders }: Props) {
     }
 
     if (pendingAction.type === "status") {
-      const result = await updateOrderStatus(pendingAction.orderId, pendingAction.status, worker.id);
+      const result = await updateReclamationStatus(pendingAction.id, pendingAction.status, worker.id);
       if (result.success) {
-        setOrders((prev) =>
-          prev.map((o) =>
-            o.id === pendingAction.orderId
-              ? { ...o, status: pendingAction.status, updatedBy: { id: worker.id, name: worker.name }, updatedById: worker.id }
-              : o
+        setReclamations((prev) =>
+          prev.map((r) =>
+            r.id === pendingAction.id
+              ? { ...r, status: pendingAction.status, updatedBy: { id: worker.id, name: worker.name } }
+              : r
           )
         );
       }
@@ -159,10 +165,12 @@ export default function OrdersClient({ orders: initialOrders }: Props) {
     setPendingAction(null);
   };
 
-  const openHistory = async (order: Order) => {
-    setHistoryOrder(order);
+  // ── Historija ──────────────────────────────────────────────────────────────
+
+  const openHistory = async (rec: Reclamation) => {
+    setHistoryRec(rec);
     setHistoryLoading(true);
-    const data = await getOrderHistory(order.id);
+    const data = await getReclamationHistory(rec.id);
     setHistory(data as HistoryEntry[]);
     setHistoryLoading(false);
   };
@@ -176,50 +184,83 @@ export default function OrdersClient({ orders: initialOrders }: Props) {
     );
   };
 
+  // ─── Render ────────────────────────────────────────────────────────────────
+
   return (
     <div className="py-6 space-y-5">
+
       {/* Zaglavlje */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold">Porudžbine</h1>
+          <h1 className="text-xl font-semibold">Reklamacije</h1>
           <p className="text-sm text-muted-foreground">{filtered.length} ukupno</p>
         </div>
         <Button onClick={() => setShowForm((v) => !v)} size="sm">
           {showForm ? <X className="w-4 h-4 mr-1.5" /> : <Plus className="w-4 h-4 mr-1.5" />}
-          {showForm ? "Zatvori" : "Nova porudžbina"}
+          {showForm ? "Zatvori" : "Nova reklamacija"}
         </Button>
       </div>
 
       {/* Forma */}
       {showForm && (
         <div className="rounded-xl border bg-card p-5 space-y-4">
-          <h2 className="font-medium">Nova porudžbina</h2>
+          <h2 className="font-medium">Nova reklamacija</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[
-              { id: "productName", label: "Naziv preparata *", placeholder: "npr. Brufen 400mg" },
-              { id: "phoneNumber", label: "Broj telefona *",   placeholder: "06X XXX XXX" },
-              { id: "personName",  label: "Ime osobe",         placeholder: "Opciono" },
-              { id: "distributor", label: "Dobavljač",         placeholder: "Opciono" },
-              { id: "note",        label: "Napomena",          placeholder: "Opciono" },
-            ].map(({ id, label, placeholder }) => (
-              <div key={id} className="space-y-1">
-                <Label htmlFor={id}>{label}</Label>
-                <Input
-                  id={id}
-                  value={form[id as keyof typeof form]}
-                  onChange={(e) => setForm((f) => ({ ...f, [id]: e.target.value }))}
-                  placeholder={placeholder}
-                />
-              </div>
-            ))}
+            <div className="space-y-1">
+              <Label htmlFor="productName">Naziv artikla *</Label>
+              <Input
+                id="productName"
+                value={form.productName}
+                onChange={(e) => setForm((f) => ({ ...f, productName: e.target.value }))}
+                placeholder="npr. Brufen 400mg"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="distributor">Dobavljač *</Label>
+              <Input
+                id="distributor"
+                value={form.distributor}
+                onChange={(e) => setForm((f) => ({ ...f, distributor: e.target.value }))}
+                placeholder="npr. Phoenix"
+              />
+            </div>
             <div className="space-y-1">
               <Label htmlFor="qty">Količina *</Label>
-              <Input id="qty" type="number" min={1} value={form.qty} onChange={(e) => setForm((f) => ({ ...f, qty: e.target.value }))} />
+              <Input
+                id="qty"
+                type="number"
+                min={1}
+                value={form.qty}
+                onChange={(e) => setForm((f) => ({ ...f, qty: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1 sm:col-span-2">
+              <Label htmlFor="reason">Razlog reklamacije *</Label>
+              <Input
+                id="reason"
+                value={form.reason}
+                onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))}
+                placeholder="npr. Oštećena ambalaža, pogrešan artikal..."
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="note">Napomena</Label>
+              <Input
+                id="note"
+                value={form.note}
+                onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
+                placeholder="Opciono"
+              />
             </div>
           </div>
           {formError && <p className="text-sm text-destructive">{formError}</p>}
           <div className="flex gap-2 pt-1">
-            <Button variant="outline" size="sm" onClick={() => { setShowForm(false); setForm(emptyForm); setFormError(""); }}>Odustani</Button>
+            <Button
+              variant="outline" size="sm"
+              onClick={() => { setShowForm(false); setForm(emptyForm); setFormError(""); }}
+            >
+              Odustani
+            </Button>
             <Button size="sm" onClick={handleFormSubmit}>Sačuvaj</Button>
           </div>
         </div>
@@ -229,11 +270,20 @@ export default function OrdersClient({ orders: initialOrders }: Props) {
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input className="pl-9" placeholder="Pretraži po artiklu, imenu ili broju..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
+          <Input
+            className="pl-9"
+            placeholder="Pretraži po artiklu, dobavljaču ili razlogu..."
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+          />
         </div>
         <div className="flex items-center gap-2">
           <Filter className="w-4 h-4 text-muted-foreground shrink-0" />
-          <select value={filterStatus} onChange={(e) => { setFilterStatus(e.target.value as OrderStatus | "sve"); setPage(1); }} className="h-10 rounded-md border border-input bg-background px-3 text-sm min-w-[160px]">
+          <select
+            value={filterStatus}
+            onChange={(e) => { setFilterStatus(e.target.value as ReclamationStatus | "sve"); setPage(1); }}
+            className="h-10 rounded-md border border-input bg-background px-3 text-sm min-w-[150px]"
+          >
             <option value="sve">Svi statusi</option>
             {Object.entries(STATUS_LABELS).map(([v, l]) => (
               <option key={v} value={v}>{l}</option>
@@ -253,45 +303,49 @@ export default function OrdersClient({ orders: initialOrders }: Props) {
               <table className="w-full text-sm">
                 <thead className="bg-muted/50 border-b">
                   <tr>
-                    {["Preparat", "Kol.", "Osoba / Telefon", "Dobavljač", "Datum", "Status", "Radnik", "Izmjeni", ""].map((h) => (
+                    {["Artikal", "Dobavljač", "Kol.", "Razlog", "Datum", "Status", "Radnik", "Izmjeni", ""].map((h) => (
                       <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {paginated.map((order) => (
-                    <tr key={order.id} className={`hover:bg-muted/20 transition-colors ${order.status === "Završeno" ? "opacity-50" : ""}`}>
+                  {paginated.map((rec) => (
+                    <tr
+                      key={rec.id}
+                      className={`hover:bg-muted/20 transition-colors ${
+                        rec.status === "Riješena" || rec.status === "Odbijena" ? "opacity-50" : ""
+                      }`}
+                    >
                       <td className="px-4 py-3">
-                        <span className={order.status === "Završeno" ? "line-through font-medium" : "font-medium"}>
-                          {order.productName}
+                        <span className={`font-medium ${rec.status === "Riješena" ? "line-through" : ""}`}>
+                          {rec.productName}
                         </span>
-                        {order.note && <p className="text-xs text-muted-foreground mt-0.5">{order.note}</p>}
+                        {rec.note && <p className="text-xs text-muted-foreground mt-0.5">{rec.note}</p>}
                       </td>
-                      <td className="px-4 py-3">{order.qty}</td>
-                      <td className="px-4 py-3">
-                        <p>{order.personName || "—"}</p>
-                        <p className="text-xs text-muted-foreground">{order.phoneNumber}</p>
+                      <td className="px-4 py-3 text-muted-foreground">{rec.distributor}</td>
+                      <td className="px-4 py-3">{rec.qty}</td>
+                      <td className="px-4 py-3 max-w-[200px]">
+                        <span className="line-clamp-2 text-sm">{rec.reason}</span>
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground">{order.distributor || "—"}</td>
                       <td className="px-4 py-3 text-muted-foreground text-xs whitespace-nowrap">
-                        {new Date(order.createdAt).toLocaleDateString("sr-Latn")}
+                        {new Date(rec.createdAt).toLocaleDateString("sr-Latn")}
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${STATUS_COLORS[order.status]}`}>
-                          {STATUS_LABELS[order.status]}
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${STATUS_COLORS[rec.status]}`}>
+                          {STATUS_LABELS[rec.status]}
                         </span>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5 text-xs text-muted-foreground whitespace-nowrap">
                           <User className="w-3 h-3 shrink-0" />
-                          {order.updatedBy.name}
+                          {rec.updatedBy.name}
                         </div>
                       </td>
                       <td className="px-4 py-3">
                         <select
-                          value={order.status}
-                          onChange={(e) => handleStatusChange(order.id, e.target.value as OrderStatus)}
-                          className="text-xs h-8 rounded border border-input bg-background px-2 min-w-[130px]"
+                          value={rec.status}
+                          onChange={(e) => handleStatusChange(rec.id, e.target.value as ReclamationStatus)}
+                          className="text-xs h-8 rounded border border-input bg-background px-2 min-w-[110px]"
                         >
                           {Object.entries(STATUS_LABELS).map(([v, l]) => (
                             <option key={v} value={v}>{l}</option>
@@ -299,7 +353,10 @@ export default function OrdersClient({ orders: initialOrders }: Props) {
                         </select>
                       </td>
                       <td className="px-2 py-3">
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openHistory(order)} title="Historija izmjena">
+                        <Button
+                          variant="ghost" size="icon" className="h-8 w-8"
+                          onClick={() => openHistory(rec)} title="Historija"
+                        >
                           <History className="w-4 h-4" />
                         </Button>
                       </td>
@@ -311,32 +368,38 @@ export default function OrdersClient({ orders: initialOrders }: Props) {
 
             {/* Mobilne kartice */}
             <div className="md:hidden divide-y">
-              {paginated.map((order) => (
-                <div key={order.id} className={`p-4 space-y-2 ${order.status === "Završeno" ? "opacity-50" : ""}`}>
+              {paginated.map((rec) => (
+                <div
+                  key={rec.id}
+                  className={`p-4 space-y-2 ${rec.status === "Riješena" || rec.status === "Odbijena" ? "opacity-50" : ""}`}
+                >
                   <div className="flex items-start justify-between gap-2">
-                    <p className={`font-medium text-sm ${order.status === "Završeno" ? "line-through" : ""}`}>
-                      {order.productName} × {order.qty}
-                    </p>
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${STATUS_COLORS[order.status]}`}>
-                      {STATUS_LABELS[order.status]}
+                    <div className="min-w-0">
+                      <p className={`font-medium text-sm ${rec.status === "Riješena" ? "line-through" : ""}`}>
+                        {rec.productName} × {rec.qty}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{rec.distributor}</p>
+                    </div>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${STATUS_COLORS[rec.status]}`}>
+                      {STATUS_LABELS[rec.status]}
                     </span>
                   </div>
-                  <p className="text-xs text-muted-foreground">{order.personName || "—"} · {order.phoneNumber}</p>
-                  {order.note && <p className="text-xs text-muted-foreground">{order.note}</p>}
+                  <p className="text-sm">{rec.reason}</p>
+                  {rec.note && <p className="text-xs text-muted-foreground">{rec.note}</p>}
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <User className="w-3 h-3" /> {order.updatedBy.name}
+                    <User className="w-3 h-3" /> {rec.updatedBy.name}
                   </div>
                   <div className="flex gap-2 pt-1">
                     <select
-                      value={order.status}
-                      onChange={(e) => handleStatusChange(order.id, e.target.value as OrderStatus)}
+                      value={rec.status}
+                      onChange={(e) => handleStatusChange(rec.id, e.target.value as ReclamationStatus)}
                       className="text-xs h-8 rounded border border-input bg-background px-2 flex-1"
                     >
                       {Object.entries(STATUS_LABELS).map(([v, l]) => (
                         <option key={v} value={v}>{l}</option>
                       ))}
                     </select>
-                    <Button variant="outline" size="sm" onClick={() => openHistory(order)}>
+                    <Button variant="outline" size="sm" onClick={() => openHistory(rec)}>
                       <History className="w-3.5 h-3.5 mr-1" /> Historija
                     </Button>
                   </div>
@@ -372,29 +435,28 @@ export default function OrdersClient({ orders: initialOrders }: Props) {
       />
 
       {/* Historija modal */}
-      {historyOrder && (
+      {historyRec && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-          onClick={(e) => { if (e.target === e.currentTarget) setHistoryOrder(null); }}
+          onClick={(e) => { if (e.target === e.currentTarget) setHistoryRec(null); }}
         >
           <div className="bg-background border rounded-xl shadow-lg w-full max-w-md mx-4 overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b">
               <div>
-                <h2 className="font-semibold">{historyOrder.productName}</h2>
+                <h2 className="font-semibold">{historyRec.productName}</h2>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  {historyOrder.personName || "—"} · {historyOrder.phoneNumber}
+                  {historyRec.distributor} · {historyRec.qty} kom
                 </p>
               </div>
-              <Button variant="ghost" size="icon" onClick={() => setHistoryOrder(null)}>
+              <Button variant="ghost" size="icon" onClick={() => setHistoryRec(null)}>
                 <X className="w-4 h-4" />
               </Button>
             </div>
-
             <div className="p-5 max-h-[60vh] overflow-y-auto">
               {historyLoading ? (
                 <div className="text-center text-muted-foreground text-sm py-8">Učitavanje...</div>
               ) : history.length === 0 ? (
-                <div className="text-center text-muted-foreground text-sm py-8">Nema historije izmjena.</div>
+                <div className="text-center text-muted-foreground text-sm py-8">Nema historije.</div>
               ) : (
                 <div className="space-y-1">
                   {history.map((entry, i) => (
@@ -407,11 +469,13 @@ export default function OrdersClient({ orders: initialOrders }: Props) {
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[entry.status]}`}>
                           {STATUS_LABELS[entry.status]}
                         </span>
+                        {entry.note && (
+                          <p className="text-xs text-muted-foreground mt-1 italic">"{entry.note}"</p>
+                        )}
                         <div className="flex items-center gap-2 mt-1.5">
                           <span className="text-xs font-medium">{entry.changedBy.name}</span>
                           <span className="text-xs text-muted-foreground">{formatDateTime(entry.changedAt)}</span>
                         </div>
-                        {entry.note && <p className="text-xs text-muted-foreground mt-1">{entry.note}</p>}
                       </div>
                     </div>
                   ))}

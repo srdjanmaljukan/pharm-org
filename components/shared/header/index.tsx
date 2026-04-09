@@ -2,8 +2,12 @@ import Link from "next/link";
 import { APP_NAME } from "@/lib/constants";
 import Menu from "./menu";
 import { FlaskConical } from "lucide-react";
+import { auth } from "@/auth";
 
-const Header = () => {
+const Header = async () => {
+  const session = await auth();
+  const userName = session?.user?.name ?? null;
+
   return (
     <header className="w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-40">
       <div className="wrapper flex-between h-14">
@@ -17,7 +21,7 @@ const Header = () => {
             </span>
           </Link>
         </div>
-        <Menu />
+        <Menu userName={userName} />
       </div>
     </header>
   );

@@ -5,8 +5,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ─────────────────────────────────────────────
@@ -24,6 +25,7 @@ enum OrderStatus {
   Poručeno
   Stiglo
   Javljeno
+  NeJavljaSe
   ProkucanoNijeNaplaćeno
   NaplaćenoNijeProkucano
   Ostalo
@@ -70,7 +72,7 @@ model User {
 }
 
 model Account {
-  userId            String  @db.Uuid
+  userId            String   @db.Uuid
   type              String
   provider          String
   providerAccountId String
@@ -113,7 +115,7 @@ model Worker {
   id        String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId    String     @db.Uuid
   name      String
-  pin       String     // hešovan PIN (4–6 cifara)
+  pin       String // hešovan PIN (4–6 cifara)
   role      WorkerRole @default(RADNIK)
   isActive  Boolean    @default(true)
   createdAt DateTime   @default(now()) @db.Timestamp(6)
@@ -121,14 +123,15 @@ model Worker {
   user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // Akcije koje je ovaj radnik radio
-  orders              Order[]              @relation("OrderUpdatedBy")
-  orderHistory        OrderHistory[]       @relation("OrderHistoryWorker")
-  internalOrders      InternalOrder[]      @relation("InternalOrderUpdatedBy")
-  reclamations        Reclamation[]        @relation("ReclamationUpdatedBy")
-  notifications       Notification[]       @relation("NotificationCreatedBy")
-  targetSales         TargetSaleEntry[]    @relation("TargetSaleEntryBy")
-  slipperUpdates      SlipperStock[]       @relation("SlipperUpdatedBy")
-  weekendShifts       WeekendShift[]
+  orders             Order[]              @relation("OrderUpdatedBy")
+  orderHistory       OrderHistory[]       @relation("OrderHistoryWorker")
+  internalOrders     InternalOrder[]      @relation("InternalOrderUpdatedBy")
+  reclamations       Reclamation[]        @relation("ReclamationUpdatedBy")
+  reclamationHistory ReclamationHistory[] @relation("ReclamationHistoryWorker")
+  notifications      Notification[]       @relation("NotificationCreatedBy")
+  targetSales        TargetSaleEntry[]    @relation("TargetSaleEntryBy")
+  slipperUpdates     SlipperStock[]       @relation("SlipperUpdatedBy")
+  weekendShifts      WeekendShift[]
 }
 
 // ─────────────────────────────────────────────
@@ -153,14 +156,14 @@ model Order {
 
 // Svaka izmjena statusa porudžbine
 model OrderHistory {
-  id        String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  orderId   String      @db.Uuid
-  status    OrderStatus
-  note      String?
-  changedAt DateTime    @default(now()) @db.Timestamp(6)
-  changedById String    @db.Uuid
-  order     Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  changedBy Worker      @relation("OrderHistoryWorker", fields: [changedById], references: [id])
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId     String      @db.Uuid
+  status      OrderStatus
+  note        String?
+  changedAt   DateTime    @default(now()) @db.Timestamp(6)
+  changedById String      @db.Uuid
+  order       Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  changedBy   Worker      @relation("OrderHistoryWorker", fields: [changedById], references: [id])
 }
 
 // ─────────────────────────────────────────────
@@ -185,17 +188,29 @@ model InternalOrder {
 // ─────────────────────────────────────────────
 
 model Reclamation {
-  id          String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id          String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   productName String
   distributor String
   qty         Int
   reason      String
   note        String?
-  status      ReclamationStatus @default(Otvorena)
-  createdAt   DateTime          @default(now()) @db.Timestamp(6)
-  updatedAt   DateTime          @updatedAt
-  updatedById String            @db.Uuid
-  updatedBy   Worker            @relation("ReclamationUpdatedBy", fields: [updatedById], references: [id])
+  status      ReclamationStatus    @default(Otvorena)
+  createdAt   DateTime             @default(now()) @db.Timestamp(6)
+  updatedAt   DateTime             @updatedAt
+  updatedById String               @db.Uuid
+  updatedBy   Worker               @relation("ReclamationUpdatedBy", fields: [updatedById], references: [id])
+  history     ReclamationHistory[]
+}
+
+model ReclamationHistory {
+  id            String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reclamationId String            @db.Uuid
+  status        ReclamationStatus
+  note          String?
+  changedAt     DateTime          @default(now()) @db.Timestamp(6)
+  changedById   String            @db.Uuid
+  reclamation   Reclamation       @relation(fields: [reclamationId], references: [id], onDelete: Cascade)
+  changedBy     Worker            @relation("ReclamationHistoryWorker", fields: [changedById], references: [id])
 }
 
 // ─────────────────────────────────────────────
@@ -203,14 +218,14 @@ model Reclamation {
 // ─────────────────────────────────────────────
 
 model Notification {
-  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   title       String
   description String?
-  remindAt    DateTime  @db.Timestamp(6) // kad treba da se prikaže podsjetnik
-  isDone      Boolean   @default(false)
-  createdAt   DateTime  @default(now()) @db.Timestamp(6)
-  createdById String    @db.Uuid
-  createdBy   Worker    @relation("NotificationCreatedBy", fields: [createdById], references: [id])
+  remindAt    DateTime @db.Timestamp(6) // kad treba da se prikaže podsjetnik
+  isDone      Boolean  @default(false)
+  createdAt   DateTime @default(now()) @db.Timestamp(6)
+  createdById String   @db.Uuid
+  createdBy   Worker   @relation("NotificationCreatedBy", fields: [createdById], references: [id])
 }
 
 // ─────────────────────────────────────────────
@@ -218,13 +233,13 @@ model Notification {
 // ─────────────────────────────────────────────
 
 model TargetItem {
-  id          String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id          String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   productName String
-  minQty      Int              // minimalna količina za prodati
-  month       Int              // 1–12
+  minQty      Int // minimalna količina za prodati
+  month       Int // 1–12
   year        Int
-  isActive    Boolean          @default(true)
-  createdAt   DateTime         @default(now()) @db.Timestamp(6)
+  isActive    Boolean           @default(true)
+  createdAt   DateTime          @default(now()) @db.Timestamp(6)
   entries     TargetSaleEntry[]
 }
 
@@ -246,8 +261,8 @@ model TargetSaleEntry {
 
 model SlipperVariant {
   id        String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  size      Int            // 36–47
-  color     String         // npr. "plava", "crvena"
+  size      Int // 36–47
+  color     String // npr. "plava", "crvena"
   createdAt DateTime       @default(now()) @db.Timestamp(6)
   stock     SlipperStock[]
 
@@ -269,10 +284,10 @@ model SlipperStock {
 // ─────────────────────────────────────────────
 
 model WeekendShift {
-  id       String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  date     DateTime   @db.Date        // konkretni datum (subota ili nedjelja)
-  day      WeekendDay                  // Subota | Nedjelja
-  workers  Worker[]
-  note     String?
-  createdAt DateTime  @default(now()) @db.Timestamp(6)
+  id        String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  date      DateTime   @db.Date // konkretni datum (subota ili nedjelja)
+  day       WeekendDay // Subota | Nedjelja
+  workers   Worker[]
+  note      String?
+  createdAt DateTime   @default(now()) @db.Timestamp(6)
 }
