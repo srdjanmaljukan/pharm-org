@@ -8,16 +8,16 @@ export const authConfig = {
   },
   callbacks: {
     authorized({ auth, request: { nextUrl } }) {
-      const isLoggedIn   = !!auth?.user;
-      const isAuthPage   = nextUrl.pathname.startsWith("/sign-in");
+      const isLoggedIn = !!auth?.user;
+      const isAuthPage = nextUrl.pathname === "/sign-in";
 
-      // Na auth stranicama — ako je već prijavljen, idi na homepage
       if (isAuthPage) {
+        // Prijavljen korisnik ne treba da vidi login stranicu
         if (isLoggedIn) return Response.redirect(new URL("/", nextUrl));
         return true;
       }
 
-      // Na svim ostalim stranicama — ako nije prijavljen, idi na prijavu
+      // Sve ostale stranice zahtijevaju prijavu
       if (!isLoggedIn) {
         return Response.redirect(new URL("/sign-in", nextUrl));
       }
