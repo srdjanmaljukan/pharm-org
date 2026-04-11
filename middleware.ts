@@ -1,20 +1,26 @@
-import { auth } from "./auth";
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { getToken } from "next-auth/jwt";
 
-export default auth((req) => {
-  const isLoggedIn = !!req.auth;
-  const isSignInPage = req.nextUrl.pathname === "/sign-in";
+export async function middleware(request: NextRequest) {
+  const token = await getToken({
+    req: request,
+    secret: process.env.AUTH_SECRET,
+  });
+
+  const isLoggedIn  = !!token;
+  const isSignInPage = request.nextUrl.pathname === "/sign-in";
 
   if (!isLoggedIn && !isSignInPage) {
-    return NextResponse.redirect(new URL("/sign-in", req.nextUrl));
+    return NextResponse.redirect(new URL("/sign-in", request.nextUrl));
   }
 
   if (isLoggedIn && isSignInPage) {
-    return NextResponse.redirect(new URL("/", req.nextUrl));
+    return NextResponse.redirect(new URL("/", request.nextUrl));
   }
 
   return NextResponse.next();
-});
+}
 
 export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico|api/auth).*)"],
