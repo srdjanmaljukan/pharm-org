@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { OrderStatus } from "@/lib/generated/prisma";
-import { createOrder, updateOrderStatus, getOrderHistory } from "@/lib/actions/order.actions";
+import { createOrder, updateOrderStatus, updateOrderDistributor, getOrderHistory } from "@/lib/actions/order.actions";
 import PinModal, { VerifiedWorker } from "@/components/shared/pin-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,7 +36,10 @@ type HistoryEntry = {
   changedBy: Worker;
 };
 
-type Props = { orders: Order[] };
+type Props = {
+  orders: Order[];
+  distributors: { id: string; name: string }[];
+};
 
 // ─── Konstante ────────────────────────────────────────────────────────────────
 
@@ -69,7 +72,7 @@ const emptyForm = { productName: "", qty: "1", phoneNumber: "", personName: "", 
 
 // ─── Komponenta ───────────────────────────────────────────────────────────────
 
-export default function OrdersClient({ orders: initialOrders }: Props) {
+export default function OrdersClient({ orders: initialOrders, distributors }: Props) {
   const [orders, setOrders] = useState<Order[]>(initialOrders);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(emptyForm);
@@ -79,6 +82,7 @@ export default function OrdersClient({ orders: initialOrders }: Props) {
   const [pendingAction, setPendingAction] = useState<
     | { type: "create"; data: typeof emptyForm }
     | { type: "status"; orderId: string; status: OrderStatus }
+    | { type: "distributor"; orderId: string; distributor: string }
     | null
   >(null);
 
@@ -125,6 +129,11 @@ export default function OrdersClient({ orders: initialOrders }: Props) {
     setPinOpen(true);
   };
 
+  const handleDistributorChange = (orderId: string, distributor: string) => {
+    setPendingAction({ type: "distributor", orderId, distributor });
+    setPinOpen(true);
+  };
+
   const handlePinSuccess = async (worker: VerifiedWorker) => {
     setPinOpen(false);
     if (!pendingAction) return;
@@ -150,6 +159,19 @@ export default function OrdersClient({ orders: initialOrders }: Props) {
           prev.map((o) =>
             o.id === pendingAction.orderId
               ? { ...o, status: pendingAction.status, updatedBy: { id: worker.id, name: worker.name }, updatedById: worker.id }
+              : o
+          )
+        );
+      }
+    }
+
+    if (pendingAction.type === "distributor") {
+      const result = await updateOrderDistributor(pendingAction.orderId, pendingAction.distributor, worker.id);
+      if (result.success) {
+        setOrders((prev) =>
+          prev.map((o) =>
+            o.id === pendingAction.orderId
+              ? { ...o, distributor: pendingAction.distributor || null, updatedBy: { id: worker.id, name: worker.name } }
               : o
           )
         );
@@ -238,13 +260,17 @@ export default function OrdersClient({ orders: initialOrders }: Props) {
             </div>
             <div className="space-y-1">
               <Label htmlFor="distributor">Dobavljač</Label>
-              <Input
+              <select
                 id="distributor"
                 value={form.distributor}
                 onChange={(e) => setForm((f) => ({ ...f, distributor: e.target.value }))}
-                placeholder="Opciono"
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); document.getElementById("note")?.focus(); }}}
-              />
+                className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="">— Odaberi dobavljača —</option>
+                {distributors.map((d) => (
+                  <option key={d.id} value={d.name}>{d.name}</option>
+                ))}
+              </select>
             </div>
             <div className="space-y-1">
               <Label htmlFor="note">Napomena</Label>
@@ -310,9 +336,25 @@ export default function OrdersClient({ orders: initialOrders }: Props) {
                       <td className="px-4 py-3">{order.qty}</td>
                       <td className="px-4 py-3">
                         <p>{order.personName || "—"}</p>
-                        <p className="text-xs text-muted-foreground">{order.phoneNumber}</p>
+                        <a
+                          href={`tel:${order.phoneNumber}`}
+                          className="text-xs text-primary hover:underline"
+                        >
+                          {order.phoneNumber}
+                        </a>
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground">{order.distributor || "—"}</td>
+                      <td className="px-4 py-3">
+                        <select
+                          value={order.distributor || ""}
+                          onChange={(e) => handleDistributorChange(order.id, e.target.value)}
+                          className="text-xs h-8 rounded border border-input bg-background px-2 min-w-[120px]"
+                        >
+                          <option value="">— Dobavljač —</option>
+                          {distributors.map((d) => (
+                            <option key={d.id} value={d.name}>{d.name}</option>
+                          ))}
+                        </select>
+                      </td>
                       <td className="px-4 py-3 text-muted-foreground text-xs whitespace-nowrap">
                         {new Date(order.createdAt).toLocaleDateString("sr-Latn")}
                       </td>
@@ -361,7 +403,12 @@ export default function OrdersClient({ orders: initialOrders }: Props) {
                       {STATUS_LABELS[order.status]}
                     </span>
                   </div>
-                  <p className="text-xs text-muted-foreground">{order.personName || "—"} · {order.phoneNumber}</p>
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <a href={`tel:${order.phoneNumber}`} className="text-primary hover:underline">
+                      {order.phoneNumber}
+                    </a>
+                    {order.personName && <span className="text-muted-foreground">· {order.personName}</span>}
+                  </div>
                   {order.note && <p className="text-xs text-muted-foreground">{order.note}</p>}
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <User className="w-3 h-3" /> {order.updatedBy.name}
@@ -377,7 +424,7 @@ export default function OrdersClient({ orders: initialOrders }: Props) {
                       ))}
                     </select>
                     <Button variant="outline" size="sm" onClick={() => openHistory(order)}>
-                      <History className="w-3.5 h-3.5 mr-1" /> Historija
+                      <History className="w-3.5 h-3.5 mr-1" /> Istorija
                     </Button>
                   </div>
                 </div>

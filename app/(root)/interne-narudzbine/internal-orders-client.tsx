@@ -374,7 +374,7 @@ export default function InternalOrdersClient({ orders: initialOrders }: Props) {
                       ))}
                     </select>
                     <Button variant="outline" size="sm" onClick={() => openHistory(order)}>
-                      <History className="w-3.5 h-3.5 mr-1" /> Historija
+                      <History className="w-3.5 h-3.5 mr-1" /> Istorija
                     </Button>
                   </div>
                 </div>

@@ -72,7 +72,25 @@ export async function createOrder(formData: FormData) {
   }
 }
 
-// ─── Izmijeni status porudžbine ───────────────────────────────────────────────
+// ─── Izmijeni dobavljača porudžbine ──────────────────────────────────────────
+
+export async function updateOrderDistributor(
+  orderId: string,
+  distributor: string,
+  workerId: string
+) {
+  try {
+    await prisma.order.update({
+      where: { id: orderId },
+      data:  { distributor: distributor || null, updatedById: workerId },
+    });
+
+    revalidatePath("/porudzbine");
+    return { success: true, message: "Dobavljač ažuriran." };
+  } catch {
+    return { success: false, message: "Greška pri ažuriranju dobavljača." };
+  }
+}
 
 export async function updateOrderStatus(
   orderId: string,

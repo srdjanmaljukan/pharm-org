@@ -6,6 +6,9 @@ import {
   createWorker, updateWorker,
   deactivateWorker, activateWorker,
 } from "@/lib/actions/worker.actions";
+import {
+  createDistributor, deleteDistributor,
+} from "@/lib/actions/distributor.actions";
 import PinModal, { VerifiedWorker } from "@/components/shared/pin-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,9 +18,7 @@ import {
   Table, TableBody, TableCell,
   TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { UserPlus, Pencil, UserX, UserCheck, Lock, ShieldCheck } from "lucide-react";
-
-// ─── Tipovi ───────────────────────────────────────────────────────────────────
+import { UserPlus, Pencil, UserX, UserCheck, Lock, ShieldCheck, Plus, X, Truck } from "lucide-react";
 
 type Worker = {
   id: string;
@@ -27,8 +28,14 @@ type Worker = {
   createdAt: Date;
 };
 
+type Distributor = {
+  id: string;
+  name: string;
+};
+
 type Props = {
   workers: Worker[];
+  distributors: Distributor[];
   currentUserId: string;
 };
 
@@ -43,8 +50,12 @@ const emptyForm: FormState = { name: "", pin: "", confirmPin: "", role: WorkerRo
 
 // ─── Komponenta ───────────────────────────────────────────────────────────────
 
-export default function AdminClient({ workers: initialWorkers, currentUserId }: Props) {
-  const [workers, setWorkers] = useState<Worker[]>(initialWorkers);
+export default function AdminClient({ workers: initialWorkers, distributors: initialDistributors, currentUserId }: Props) {
+  const [workers, setWorkers]           = useState<Worker[]>(initialWorkers);
+  const [distributors, setDistributors] = useState<Distributor[]>(initialDistributors);
+  const [newDistributor, setNewDistributor] = useState("");
+  const [distError, setDistError]       = useState("");
+  const [distLoading, setDistLoading]   = useState(false);
 
   // Admin verifikacija — ko je ušao u panel
   const [adminWorker, setAdminWorker] = useState<VerifiedWorker | null>(null);
@@ -194,6 +205,30 @@ export default function AdminClient({ workers: initialWorkers, currentUserId }: 
   const refreshWorkers = async () => {
     const res = await fetch("/api/workers");
     if (res.ok) setWorkers(await res.json());
+  };
+
+  // ── Dobavljači ─────────────────────────────────────────────────────────────
+
+  const handleAddDistributor = async () => {
+    if (!newDistributor.trim()) { setDistError("Naziv je obavezan."); return; }
+    setDistLoading(true);
+    setDistError("");
+    const result = await createDistributor(newDistributor.trim());
+    if (result.success) {
+      setDistributors((prev) => [...prev, { id: Date.now().toString(), name: newDistributor.trim() }].sort((a, b) => a.name.localeCompare(b.name)));
+      setNewDistributor("");
+    } else {
+      setDistError(result.message);
+    }
+    setDistLoading(false);
+  };
+
+  const handleDeleteDistributor = async (id: string, name: string) => {
+    if (!confirm(`Ukloniti dobavljača "${name}"?`)) return;
+    const result = await deleteDistributor(id);
+    if (result.success) {
+      setDistributors((prev) => prev.filter((d) => d.id !== id));
+    }
   };
 
   const activeWorkers   = workers.filter((w) => w.isActive);
@@ -405,6 +440,67 @@ export default function AdminClient({ workers: initialWorkers, currentUserId }: 
             </CardContent>
           </Card>
         )}
+      </div>
+
+      {/* ── Dobavljači ────────────────────────────────────────────────────── */}
+      <div className="space-y-4">
+        <h2 className="font-medium flex items-center gap-2">
+          <Truck className="w-4 h-4" />
+          Dobavljači
+        </h2>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Dodaj dobavljača</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex gap-2">
+              <Input
+                value={newDistributor}
+                onChange={(e) => { setNewDistributor(e.target.value); setDistError(""); }}
+                placeholder="Naziv dobavljača"
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddDistributor(); }}}
+              />
+              <Button onClick={handleAddDistributor} disabled={distLoading} size="sm">
+                <Plus className="w-4 h-4 mr-1.5" />
+                Dodaj
+              </Button>
+            </div>
+            {distError && <p className="text-sm text-destructive">{distError}</p>}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Lista dobavljača ({distributors.length})</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            {distributors.length === 0 ? (
+              <div className="px-4 py-8 text-center text-muted-foreground text-sm">
+                Nema dobavljača. Dodaj prvog iznad.
+              </div>
+            ) : (
+              <Table>
+                <TableBody>
+                  {distributors.map((d) => (
+                    <TableRow key={d.id}>
+                      <TableCell className="font-medium">{d.name}</TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          size="sm" variant="ghost"
+                          className="text-muted-foreground hover:text-destructive"
+                          onClick={() => handleDeleteDistributor(d.id, d.name)}
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       {/* PIN modal — ulaz u admin panel */}

@@ -145,8 +145,9 @@ export default function TargetsClient({ items: initialItems, currentMonth, curre
     }
   };
 
+  // Koristi samo zadnji unos (ne sabira sve)
   const totalSold = (item: TargetItem) =>
-    item.entries.reduce((sum, e) => sum + e.qtySold, 0);
+    item.entries.length > 0 ? item.entries[0].qtySold : 0;
 
   const formatDate = (date: Date) =>
     new Date(date).toLocaleDateString("sr-Latn");

@@ -400,7 +400,7 @@ export default function ReclamationsClient({ reclamations: initialData }: Props)
                       ))}
                     </select>
                     <Button variant="outline" size="sm" onClick={() => openHistory(rec)}>
-                      <History className="w-3.5 h-3.5 mr-1" /> Historija
+                      <History className="w-3.5 h-3.5 mr-1" /> Istorija
                     </Button>
                   </div>
                 </div>
