@@ -195,26 +195,66 @@ export default function OrdersClient({ orders: initialOrders }: Props) {
         <div className="rounded-xl border bg-card p-5 space-y-4">
           <h2 className="font-medium">Nova porudžbina</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[
-              { id: "productName", label: "Naziv preparata *", placeholder: "npr. Brufen 400mg" },
-              { id: "phoneNumber", label: "Broj telefona *",   placeholder: "06X XXX XXX" },
-              { id: "personName",  label: "Ime osobe",         placeholder: "Opciono" },
-              { id: "distributor", label: "Dobavljač",         placeholder: "Opciono" },
-              { id: "note",        label: "Napomena",          placeholder: "Opciono" },
-            ].map(({ id, label, placeholder }) => (
-              <div key={id} className="space-y-1">
-                <Label htmlFor={id}>{label}</Label>
-                <Input
-                  id={id}
-                  value={form[id as keyof typeof form]}
-                  onChange={(e) => setForm((f) => ({ ...f, [id]: e.target.value }))}
-                  placeholder={placeholder}
-                />
-              </div>
-            ))}
+            <div className="space-y-1">
+              <Label htmlFor="productName">Naziv preparata *</Label>
+              <Input
+                id="productName"
+                value={form.productName}
+                onChange={(e) => setForm((f) => ({ ...f, productName: e.target.value }))}
+                placeholder="npr. Brufen 400mg"
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); document.getElementById("qty")?.focus(); }}}
+              />
+            </div>
             <div className="space-y-1">
               <Label htmlFor="qty">Količina *</Label>
-              <Input id="qty" type="number" min={1} value={form.qty} onChange={(e) => setForm((f) => ({ ...f, qty: e.target.value }))} />
+              <Input
+                id="qty"
+                type="number"
+                min={1}
+                value={form.qty}
+                onChange={(e) => setForm((f) => ({ ...f, qty: e.target.value }))}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); document.getElementById("phoneNumber")?.focus(); }}}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="phoneNumber">Broj telefona *</Label>
+              <Input
+                id="phoneNumber"
+                value={form.phoneNumber}
+                onChange={(e) => setForm((f) => ({ ...f, phoneNumber: e.target.value }))}
+                placeholder="06X XXX XXX"
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); document.getElementById("personName")?.focus(); }}}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="personName">Ime osobe</Label>
+              <Input
+                id="personName"
+                value={form.personName}
+                onChange={(e) => setForm((f) => ({ ...f, personName: e.target.value }))}
+                placeholder="Opciono"
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); document.getElementById("distributor")?.focus(); }}}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="distributor">Dobavljač</Label>
+              <Input
+                id="distributor"
+                value={form.distributor}
+                onChange={(e) => setForm((f) => ({ ...f, distributor: e.target.value }))}
+                placeholder="Opciono"
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); document.getElementById("note")?.focus(); }}}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="note">Napomena</Label>
+              <Input
+                id="note"
+                value={form.note}
+                onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
+                placeholder="Opciono"
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleFormSubmit(); }}}
+              />
             </div>
           </div>
           {formError && <p className="text-sm text-destructive">{formError}</p>}

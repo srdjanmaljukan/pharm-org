@@ -73,12 +73,20 @@ export async function addSaleEntry(
       return { success: false, message: "Količina mora biti najmanje 1." };
     }
 
+    // Ako nema workerId, uzimamo prvog aktivnog radnika kao fallback
+    let finalWorkerId = workerId;
+    if (!finalWorkerId) {
+      const worker = await prisma.worker.findFirst({ where: { isActive: true } });
+      if (!worker) return { success: false, message: "Nema aktivnih radnika." };
+      finalWorkerId = worker.id;
+    }
+
     const entry = await prisma.targetSaleEntry.create({
       data: {
         targetItemId,
         qtySold,
         note: note || null,
-        enteredById: workerId,
+        enteredById: finalWorkerId,
       },
       include: {
         enteredBy: { select: { id: true, name: true } },
