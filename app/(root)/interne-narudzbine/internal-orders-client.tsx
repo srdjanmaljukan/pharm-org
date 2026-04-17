@@ -83,6 +83,7 @@ export default function InternalOrdersClient({ orders: initialOrders }: Props) {
 
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<InternalOrderStatus | "sve">("sve");
+  const [groupByDistributor, setGroupByDistributor] = useState(false);
   const [page, setPage] = useState(1);
 
   // ── Filtriranje ────────────────────────────────────────────────────────────
@@ -97,6 +98,18 @@ export default function InternalOrdersClient({ orders: initialOrders }: Props) {
       return matchSearch && matchStatus;
     });
   }, [orders, search, filterStatus]);
+
+  // Grupisanje po dobavljaču
+  const grouped = useMemo(() => {
+    if (!groupByDistributor) return null;
+    const map = new Map<string, InternalOrder[]>();
+    filtered.forEach((o) => {
+      const key = o.distributor || "— Bez dobavljača —";
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(o);
+    });
+    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
+  }, [filtered, groupByDistributor]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -245,8 +258,8 @@ export default function InternalOrdersClient({ orders: initialOrders }: Props) {
       )}
 
       {/* Filteri */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
+      <div className="flex flex-col gap-3">
+        <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             className="pl-9"
@@ -255,26 +268,79 @@ export default function InternalOrdersClient({ orders: initialOrders }: Props) {
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
           />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Filter className="w-4 h-4 text-muted-foreground shrink-0" />
           <select
             value={filterStatus}
             onChange={(e) => { setFilterStatus(e.target.value as InternalOrderStatus | "sve"); setPage(1); }}
-            className="h-10 rounded-md border border-input bg-background px-3 text-sm min-w-[140px]"
+            className="h-9 rounded-md border border-input bg-background px-3 text-sm flex-1 min-w-[130px]"
           >
             <option value="sve">Svi statusi</option>
             {Object.entries(STATUS_LABELS).map(([v, l]) => (
               <option key={v} value={v}>{l}</option>
             ))}
           </select>
+          <button
+            onClick={() => setGroupByDistributor((v) => !v)}
+            className={`h-9 px-3 rounded-md border text-sm font-medium transition-colors ${
+              groupByDistributor
+                ? "bg-primary text-primary-foreground border-primary"
+                : "border-input bg-background text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Grupiši po dobavljaču
+          </button>
         </div>
       </div>
 
-      {/* Tabela */}
-      <div className="rounded-xl border bg-card overflow-hidden">
-        {paginated.length === 0 ? (
-          <div className="p-12 text-center text-muted-foreground text-sm">Nema rezultata.</div>
-        ) : (
+      {/* Grupisani prikaz */}
+      {groupByDistributor && grouped ? ( grouped.length > 0 ? (
+        <div className="space-y-4">
+          {grouped.map(([distributor, items]) => (
+            <div key={distributor} className="rounded-xl border bg-card overflow-hidden">
+              <div className="px-4 py-3 bg-muted/50 border-b flex items-center justify-between">
+                <h3 className="font-medium text-sm">{distributor}</h3>
+                <span className="text-xs text-muted-foreground">
+                  {items.length} {items.length === 1 ? "artikal" : "artikala"} ·{" "}
+                  {items.reduce((s, o) => s + o.qty, 0)} kom ukupno
+                </span>
+              </div>
+              <div className="divide-y">
+                {items.map((order) => (
+                  <div
+                    key={order.id}
+                    className={`px-4 py-3 flex items-center justify-between gap-3 ${order.status === "Završeno" ? "opacity-50" : ""}`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className={`text-sm font-medium ${order.status === "Završeno" ? "line-through" : ""}`}>
+                        {order.productName}
+                        <span className="text-muted-foreground font-normal ml-2">× {order.qty}</span>
+                      </p>
+                      {order.note && <p className="text-xs text-muted-foreground mt-0.5">{order.note}</p>}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[order.status]}`}>
+                        {STATUS_LABELS[order.status]}
+                      </span>
+                      <select
+                        value={order.status}
+                        onChange={(e) => handleStatusChange(order.id, e.target.value as InternalOrderStatus)}
+                        className="text-xs h-7 rounded border border-input bg-background px-1.5"
+                      >
+                        {Object.entries(STATUS_LABELS).map(([v, l]) => (
+                          <option key={v} value={v}>{l}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="p-12 text-center text-muted-foreground text-sm">Nema rezultata.</div>
+      )) : (
           <>
             {/* Desktop */}
             <div className="hidden md:block overflow-x-auto">
@@ -382,7 +448,7 @@ export default function InternalOrdersClient({ orders: initialOrders }: Props) {
             </div>
           </>
         )}
-      </div>
+
 
       {/* Paginacija */}
       {totalPages > 1 && (

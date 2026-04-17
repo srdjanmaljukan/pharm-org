@@ -92,9 +92,11 @@ export default function OrdersClient({ orders: initialOrders, distributors }: Pr
 
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<OrderStatus | "sve">("sve");
+  const [filterDate, setFilterDate] = useState<"sve" | "danas" | "sedmica" | "mjesec">("sve");
   const [page, setPage] = useState(1);
 
   const filtered = useMemo(() => {
+    const now = new Date();
     return orders.filter((o) => {
       const matchSearch =
         !search ||
@@ -102,9 +104,26 @@ export default function OrdersClient({ orders: initialOrders, distributors }: Pr
         o.personName?.toLowerCase().includes(search.toLowerCase()) ||
         o.phoneNumber.includes(search);
       const matchStatus = filterStatus === "sve" || o.status === filterStatus;
-      return matchSearch && matchStatus;
+
+      let matchDate = true;
+      if (filterDate !== "sve") {
+        const created = new Date(o.createdAt);
+        if (filterDate === "danas") {
+          matchDate = created.toDateString() === now.toDateString();
+        } else if (filterDate === "sedmica") {
+          const weekAgo = new Date(now);
+          weekAgo.setDate(now.getDate() - 7);
+          matchDate = created >= weekAgo;
+        } else if (filterDate === "mjesec") {
+          matchDate =
+            created.getMonth() === now.getMonth() &&
+            created.getFullYear() === now.getFullYear();
+        }
+      }
+
+      return matchSearch && matchStatus && matchDate;
     });
-  }, [orders, search, filterStatus]);
+  }, [orders, search, filterStatus, filterDate]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -292,18 +311,32 @@ export default function OrdersClient({ orders: initialOrders, distributors }: Pr
       )}
 
       {/* Filteri */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
+      <div className="flex flex-col gap-3">
+        <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input className="pl-9" placeholder="Pretraži po artiklu, imenu ili broju..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
         </div>
-        <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-muted-foreground shrink-0" />
-          <select value={filterStatus} onChange={(e) => { setFilterStatus(e.target.value as OrderStatus | "sve"); setPage(1); }} className="h-10 rounded-md border border-input bg-background px-3 text-sm min-w-[160px]">
+        <div className="flex flex-wrap gap-2">
+          <Filter className="w-4 h-4 text-muted-foreground shrink-0 self-center" />
+          <select
+            value={filterStatus}
+            onChange={(e) => { setFilterStatus(e.target.value as OrderStatus | "sve"); setPage(1); }}
+            className="h-9 rounded-md border border-input bg-background px-3 text-sm flex-1 min-w-[150px]"
+          >
             <option value="sve">Svi statusi</option>
             {Object.entries(STATUS_LABELS).map(([v, l]) => (
               <option key={v} value={v}>{l}</option>
             ))}
+          </select>
+          <select
+            value={filterDate}
+            onChange={(e) => { setFilterDate(e.target.value as typeof filterDate); setPage(1); }}
+            className="h-9 rounded-md border border-input bg-background px-3 text-sm flex-1 min-w-[130px]"
+          >
+            <option value="sve">Svi datumi</option>
+            <option value="danas">Danas</option>
+            <option value="sedmica">Ova sedmica</option>
+            <option value="mjesec">Ovaj mjesec</option>
           </select>
         </div>
       </div>
