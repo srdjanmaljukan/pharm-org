@@ -381,7 +381,7 @@ export default function OrdersClient({ orders: initialOrders, distributors }: Pr
                         </select>
                       </td>
                       <td className="px-2 py-3">
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openHistory(order)} title="Historija izmjena">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openHistory(order)} title="Istorija izmjena">
                           <History className="w-4 h-4" />
                         </Button>
                       </td>
@@ -413,6 +413,20 @@ export default function OrdersClient({ orders: initialOrders, distributors }: Pr
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <User className="w-3 h-3" /> {order.updatedBy.name}
                   </div>
+                  {/* Dobavljač */}
+                  <div>
+                    <select
+                      value={order.distributor || ""}
+                      onChange={(e) => handleDistributorChange(order.id, e.target.value)}
+                      className="text-xs h-8 rounded border border-input bg-background px-2 w-full"
+                    >
+                      <option value="">— Dobavljač —</option>
+                      {distributors.map((d) => (
+                        <option key={d.id} value={d.name}>{d.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {/* Status i istorija */}
                   <div className="flex gap-2 pt-1">
                     <select
                       value={order.status}
