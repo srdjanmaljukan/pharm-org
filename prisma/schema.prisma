@@ -49,11 +49,6 @@ enum ReclamationStatus {
 }
 
 // Dan vikenda
-enum WeekendDay {
-  Subota
-  Nedjelja
-}
-
 // ─────────────────────────────────────────────
 // AUTH MODELI (NextAuth)
 // ─────────────────────────────────────────────
@@ -130,10 +125,12 @@ model Worker {
   reclamations        Reclamation[]        @relation("ReclamationUpdatedBy")
   reclamationHistory  ReclamationHistory[] @relation("ReclamationHistoryWorker")
   notifications       Notification[]       @relation("NotificationCreatedBy")
+  updatedNotifications Notification[]      @relation("NotificationUpdatedBy")
   targetSales         TargetSaleEntry[]    @relation("TargetSaleEntryBy")
   slipperUpdates      SlipperVariant[]     @relation("SlipperUpdatedBy")
   slipperSales        SlipperSale[]        @relation("SlipperSaleBy")
-  weekendShifts       WeekendShift[]
+  weekendLetter       WorkerCycleLetter?
+  createdCycles       CycleStart[]         @relation("CycleStartCreatedBy")
 }
 
 // ─────────────────────────────────────────────
@@ -242,15 +239,33 @@ model ReclamationHistory {
 // NOTIFIKACIJE / PODSJETNICI
 // ─────────────────────────────────────────────
 
+enum NotificationPriority {
+  Normalno
+  Bitno
+  Hitno
+}
+
+enum NotificationStatus {
+  NijeZavrseno
+  Zavrseno
+}
+
+// ─────────────────────────────────────────────
+// NOTIFIKACIJE / PODSJETNICI
+// ─────────────────────────────────────────────
+
 model Notification {
-  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id          String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   title       String
   description String?
-  remindAt    DateTime  @db.Timestamp(6) // kad treba da se prikaže podsjetnik
-  isDone      Boolean   @default(false)
-  createdAt   DateTime  @default(now()) @db.Timestamp(6)
-  createdById String    @db.Uuid
-  createdBy   Worker    @relation("NotificationCreatedBy", fields: [createdById], references: [id])
+  remindAt    DateTime             @db.Timestamp(6)
+  priority    NotificationPriority @default(Normalno)
+  status      NotificationStatus   @default(NijeZavrseno)
+  createdAt   DateTime             @default(now()) @db.Timestamp(6)
+  createdById String               @db.Uuid
+  createdBy   Worker               @relation("NotificationCreatedBy", fields: [createdById], references: [id])
+  updatedById String?              @db.Uuid
+  updatedBy   Worker?              @relation("NotificationUpdatedBy", fields: [updatedById], references: [id])
 }
 
 // ─────────────────────────────────────────────
@@ -316,14 +331,22 @@ model SlipperSale {
 }
 
 // ─────────────────────────────────────────────
-// RASPORED VIKENDA
+// RASPORED VIKENDA — ciklični sistem
 // ─────────────────────────────────────────────
 
-model WeekendShift {
-  id       String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  date     DateTime   @db.Date        // konkretni datum (subota ili nedjelja)
-  day      WeekendDay                  // Subota | Nedjelja
-  workers  Worker[]
-  note     String?
-  createdAt DateTime  @default(now()) @db.Timestamp(6)
+// Dodjela slova radnicima za ciklus
+model WorkerCycleLetter {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workerId String @db.Uuid @unique
+  letter   String // "A", "B", "C"...
+  worker   Worker @relation(fields: [workerId], references: [id], onDelete: Cascade)
+}
+
+// Početak ciklusa — admin označava koji datum je "sedmica 1"
+model CycleStart {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  startDate DateTime @db.Date // subota sedmice 1
+  createdAt DateTime @default(now()) @db.Timestamp(6)
+  createdById String @db.Uuid
+  createdBy Worker   @relation("CycleStartCreatedBy", fields: [createdById], references: [id])
 }

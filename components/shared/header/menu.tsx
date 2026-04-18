@@ -6,8 +6,7 @@ import {
   ShoppingBag, AlertTriangle, Target, Footprints,
   Calendar, Bell, ChevronDown, Menu as MenuIcon, X,
   LogOut, Settings, MoreHorizontal, User
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
+} from "lucide-react";import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
@@ -23,9 +22,8 @@ const mainLinks = [
 ];
 
 const moreLinks = [
-  { href: "/papuce",       label: "Papuče",           icon: Footprints },
-  { href: "/raspored",     label: "Raspored vikenda", icon: Calendar },
-  { href: "/notifikacije", label: "Notifikacije",     icon: Bell },
+  { href: "/papuce",   label: "Papuče",           icon: Footprints },
+  { href: "/raspored", label: "Raspored vikenda",  icon: Calendar },
 ];
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -42,11 +40,11 @@ function useClickOutside(ref: React.RefObject<HTMLDivElement | null>, onClose: (
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
-type Props = { userName: string | null };
+type Props = { userName: string | null; notifCount: number };
 
 // ─── Komponenta ───────────────────────────────────────────────────────────────
 
-export default function Menu({ userName }: Props) {
+export default function Menu({ userName, notifCount }: Props) {
   const pathname = usePathname();
   const router   = useRouter();
 
@@ -131,6 +129,21 @@ export default function Menu({ userName }: Props) {
             </div>
           )}
         </div>
+
+        <div className="w-px h-5 bg-border mx-1" />
+
+        {/* Notifikacije sa badge-om */}
+        <Link
+          href="/notifikacije"
+          className="relative flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+        >
+          <Bell className="w-3.5 h-3.5" />
+          {notifCount > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold px-1">
+              {notifCount > 9 ? "9+" : notifCount}
+            </span>
+          )}
+        </Link>
 
         <div className="w-px h-5 bg-border mx-1" />
 

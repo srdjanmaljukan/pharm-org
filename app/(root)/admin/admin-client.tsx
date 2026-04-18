@@ -93,14 +93,17 @@ export default function AdminClient({ workers: initialWorkers, distributors: ini
 
   const handleAdminPinSuccess = (worker: VerifiedWorker) => {
     if (worker.role !== WorkerRole.ADMIN) {
-      // Nije admin — odbij pristup
       setAdminPinOpen(false);
-      setSuccessMsg("");
       setFormError("Samo admin radnik može upravljati panelom.");
       return;
     }
     setAdminWorker(worker);
     setAdminPinOpen(false);
+
+    // Ako je PIN tražen zbog dodavanja dobavljača, odmah nastavi
+    if (newDistributor.trim()) {
+      confirmAddDistributor(worker);
+    }
   };
 
   // ── Forma ──────────────────────────────────────────────────────────────────
@@ -209,25 +212,40 @@ export default function AdminClient({ workers: initialWorkers, distributors: ini
 
   // ── Dobavljači ─────────────────────────────────────────────────────────────
 
-  const handleAddDistributor = async () => {
+  const handleAddDistributor = () => {
     if (!newDistributor.trim()) { setDistError("Naziv je obavezan."); return; }
+    if (!adminWorker) { setAdminPinOpen(true); return; }
+    confirmAddDistributor(adminWorker);
+  };
+
+  const confirmAddDistributor = async (worker: VerifiedWorker) => {
     setDistLoading(true);
     setDistError("");
     const result = await createDistributor(newDistributor.trim());
     if (result.success) {
-      setDistributors((prev) => [...prev, { id: Date.now().toString(), name: newDistributor.trim() }].sort((a, b) => a.name.localeCompare(b.name)));
+      setDistributors((prev) =>
+        [...prev, { id: Date.now().toString(), name: newDistributor.trim() }]
+          .sort((a, b) => a.name.localeCompare(b.name))
+      );
       setNewDistributor("");
+      showSuccess(result.message);
     } else {
       setDistError(result.message);
     }
     setDistLoading(false);
   };
 
-  const handleDeleteDistributor = async (id: string, name: string) => {
+  const handleDeleteDistributor = (id: string, name: string) => {
+    if (!adminWorker) { setAdminPinOpen(true); return; }
     if (!confirm(`Ukloniti dobavljača "${name}"?`)) return;
+    deleteDistributorConfirmed(id);
+  };
+
+  const deleteDistributorConfirmed = async (id: string) => {
     const result = await deleteDistributor(id);
     if (result.success) {
       setDistributors((prev) => prev.filter((d) => d.id !== id));
+      showSuccess(result.message);
     }
   };
 
