@@ -12,7 +12,7 @@ import PinModal, { VerifiedWorker } from "@/components/shared/pin-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, X, Trash2, Bell, BellOff, Check, Clock, User, Filter } from "lucide-react";
+import { Plus, X, Trash2, BellOff, Check, Clock, User, Filter } from "lucide-react";
 
 // ─── Tipovi ───────────────────────────────────────────────────────────────────
 
@@ -47,7 +47,8 @@ const PRIORITY_BORDER: Record<NotificationPriority, string> = {
 };
 
 const emptyForm = {
-  title: "", description: "", remindDate: "", remindTime: "08:30",
+  title: "", description: "", remindDate: "",
+  remindHour: "08", remindMinute: "30",
   priority: "Normalno" as NotificationPriority,
 };
 
@@ -69,32 +70,45 @@ export default function NotificationsClient({ notifications: initialData }: Prop
     | null
   >(null);
 
+  // Osvježavamo now svaki put kad se render-uje
   const now = new Date();
 
   // ── Filtriranje i sortiranje ───────────────────────────────────────────────
 
   const filtered = useMemo(() => {
-    return notifications
+    return [...notifications]
       .filter((n) => filterStatus === "sve" || n.status === filterStatus)
       .sort((a, b) => {
-        // Aktivne prvo, pa po datumu
-        if (a.status !== b.status) {
-          return a.status === "NijeZavrseno" ? -1 : 1;
-        }
-        return new Date(a.remindAt).getTime() - new Date(b.remindAt).getTime();
+        // Završene idu na kraj
+        if (a.status !== b.status) return a.status === "NijeZavrseno" ? -1 : 1;
+
+        // Unutar aktivnih: istekle gore (po datumu uzlazno), buduće ispod
+        const aTime   = new Date(a.remindAt).getTime();
+        const bTime   = new Date(b.remindAt).getTime();
+        const nowTime = now.getTime();
+        const aOverdue = aTime <= nowTime;
+        const bOverdue = bTime <= nowTime;
+
+        if (aOverdue && !bOverdue) return -1;  // a istekla, b nije → a gore
+        if (!aOverdue && bOverdue) return 1;   // b istekla, a nije → b gore
+        return aTime - bTime;                  // iste kategorije → po datumu
       });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [notifications, filterStatus]);
 
-  // Broj aktivnih za info
   const activeCount = notifications.filter(
     (n) => n.status === "NijeZavrseno" && new Date(n.remindAt) <= now
   ).length;
 
-  // ── Akcije ────────────────────────────────────────────────────────────────
+  // ── Forma ─────────────────────────────────────────────────────────────────
 
   const handleFormSubmit = () => {
     if (!form.title.trim()) { setFormError("Naslov je obavezan."); return; }
     if (!form.remindDate)   { setFormError("Datum je obavezan."); return; }
+    const h = parseInt(form.remindHour);
+    const m = parseInt(form.remindMinute);
+    if (isNaN(h) || h < 0 || h > 23) { setFormError("Sati moraju biti između 0 i 23."); return; }
+    if (isNaN(m) || m < 0 || m > 59) { setFormError("Minute moraju biti između 0 i 59."); return; }
     setFormError("");
     setPendingAction({ type: "create" });
     setPinOpen(true);
@@ -120,18 +134,35 @@ export default function NotificationsClient({ notifications: initialData }: Prop
     if (!pendingAction) return;
 
     if (pendingAction.type === "create") {
+      const h  = form.remindHour.padStart(2, "0");
+      const m  = form.remindMinute.padStart(2, "0");
       const fd = new FormData();
       fd.set("title",       form.title.trim());
       fd.set("description", form.description.trim());
       fd.set("remindDate",  form.remindDate);
-      fd.set("remindTime",  form.remindTime || "08:30");
+      fd.set("remindTime",  `${h}:${m}`);
       fd.set("priority",    form.priority);
       fd.set("workerId",    worker.id);
+
       const result = await createNotification(fd);
       if (result.success) {
+        // Dodaj odmah u lokalni state — bez čekanja na reload
+        const remindAt = new Date(`${form.remindDate}T${h}:${m}:00`);
+        const newNotif: Notification = {
+          id:          Date.now().toString(),
+          title:       form.title.trim(),
+          description: form.description.trim() || null,
+          remindAt,
+          priority:    form.priority,
+          status:      NotificationStatus.NijeZavrseno,
+          createdAt:   new Date(),
+          createdBy:   { id: worker.id, name: worker.name },
+          updatedBy:   null,
+        };
+        setNotifications((prev) => [newNotif, ...prev]);
         setForm(emptyForm);
         setShowForm(false);
-        router.refresh();
+        router.refresh(); // osvježi badge u headeru
       } else {
         setFormError(result.message);
       }
@@ -162,13 +193,14 @@ export default function NotificationsClient({ notifications: initialData }: Prop
     setPendingAction(null);
   };
 
-  // ── Format datuma/vremena ─────────────────────────────────────────────────
+  // ── Formatiranje ──────────────────────────────────────────────────────────
 
   const formatRemindAt = (date: Date) => {
     const d = new Date(date);
-    return d.toLocaleDateString("sr-Latn", {
-      day: "numeric", month: "long", year: "numeric",
-    }) + " u " + d.toLocaleTimeString("sr-Latn", { hour: "2-digit", minute: "2-digit" });
+    const dateStr = d.toLocaleDateString("sr-Latn", { day: "numeric", month: "long", year: "numeric" });
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mm = String(d.getMinutes()).padStart(2, "0");
+    return `${dateStr} u ${hh}:${mm}`;
   };
 
   const isOverdue  = (n: Notification) => n.status === "NijeZavrseno" && new Date(n.remindAt) <= now;
@@ -207,39 +239,71 @@ export default function NotificationsClient({ notifications: initialData }: Prop
                 value={form.title}
                 onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
                 placeholder="npr. Popis lijekova"
-                onKeyDown={(e) => { if (e.key === "Enter") document.getElementById("description")?.focus(); }}
+                onKeyDown={(e) => { if (e.key === "Enter") document.getElementById("notif-desc")?.focus(); }}
               />
             </div>
             <div className="space-y-1 sm:col-span-2">
-              <Label htmlFor="description">Opis (opciono)</Label>
+              <Label htmlFor="notif-desc">Opis (opciono)</Label>
               <Input
-                id="description"
+                id="notif-desc"
                 value={form.description}
                 onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
                 placeholder="Dodatne informacije..."
-                onKeyDown={(e) => { if (e.key === "Enter") document.getElementById("remindDate")?.focus(); }}
+                onKeyDown={(e) => { if (e.key === "Enter") document.getElementById("notif-date")?.focus(); }}
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="remindDate">Datum podsjetnika *</Label>
+              <Label htmlFor="notif-date">Datum *</Label>
               <Input
-                id="remindDate"
+                id="notif-date"
                 type="date"
                 value={form.remindDate}
                 onChange={(e) => setForm((f) => ({ ...f, remindDate: e.target.value }))}
-                onKeyDown={(e) => { if (e.key === "Enter") document.getElementById("remindTime")?.focus(); }}
+                onKeyDown={(e) => { if (e.key === "Enter") document.getElementById("notif-hour")?.focus(); }}
               />
             </div>
+            {/* Sati i minute — 24h, ručni unos */}
             <div className="space-y-1">
-              <Label htmlFor="remindTime">Vrijeme (default 08:30)</Label>
-              <Input
-                id="remindTime"
-                type="time"
-                value={form.remindTime}
-                onChange={(e) => setForm((f) => ({ ...f, remindTime: e.target.value }))}
-              />
+              <Label>Vrijeme (24h, default 08:30)</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="notif-hour"
+                  type="number"
+                  min={0} max={23}
+                  value={form.remindHour}
+                  onChange={(e) => {
+                    const v = e.target.value.replace(/\D/g, "").slice(0, 2);
+                    setForm((f) => ({ ...f, remindHour: v }));
+                  }}
+                  onBlur={(e) => {
+                    const v = parseInt(e.target.value);
+                    setForm((f) => ({ ...f, remindHour: isNaN(v) ? "08" : String(Math.min(23, Math.max(0, v))).padStart(2, "0") }));
+                  }}
+                  placeholder="08"
+                  className="w-16 text-center"
+                  onKeyDown={(e) => { if (e.key === "Enter") document.getElementById("notif-minute")?.focus(); }}
+                />
+                <span className="text-lg font-bold text-muted-foreground">:</span>
+                <Input
+                  id="notif-minute"
+                  type="number"
+                  min={0} max={59}
+                  value={form.remindMinute}
+                  onChange={(e) => {
+                    const v = e.target.value.replace(/\D/g, "").slice(0, 2);
+                    setForm((f) => ({ ...f, remindMinute: v }));
+                  }}
+                  onBlur={(e) => {
+                    const v = parseInt(e.target.value);
+                    setForm((f) => ({ ...f, remindMinute: isNaN(v) ? "30" : String(Math.min(59, Math.max(0, v))).padStart(2, "0") }));
+                  }}
+                  placeholder="30"
+                  className="w-16 text-center"
+                  onKeyDown={(e) => { if (e.key === "Enter") handleFormSubmit(); }}
+                />
+              </div>
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1 sm:col-span-2">
               <Label>Prioritet</Label>
               <div className="flex gap-2">
                 {(["Normalno", "Bitno", "Hitno"] as NotificationPriority[]).map((p) => (
@@ -269,7 +333,7 @@ export default function NotificationsClient({ notifications: initialData }: Prop
       )}
 
       {/* Filter */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <Filter className="w-4 h-4 text-muted-foreground shrink-0" />
         {([
           { value: "NijeZavrseno", label: "Aktivni" },
@@ -312,23 +376,26 @@ export default function NotificationsClient({ notifications: initialData }: Prop
               <div
                 key={notif.id}
                 className={`rounded-xl border bg-card p-4 border-l-4 transition-all ${
-                  done
-                    ? "border-l-emerald-400 opacity-60"
-                    : PRIORITY_BORDER[notif.priority]
+                  done ? "border-l-emerald-400 opacity-60" : PRIORITY_BORDER[notif.priority]
                 }`}
               >
                 <div className="flex items-start gap-3">
-                  {/* Ikonica statusa */}
+                  {/* Krug za završavanje */}
                   <button
-                    onClick={() => handleStatusToggle(notif)}
+                    onClick={() => !upcoming && handleStatusToggle(notif)}
+                    disabled={upcoming}
                     className={`mt-0.5 shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
                       done
                         ? "bg-emerald-500 border-emerald-500 text-white"
-                        : overdue
-                        ? "border-red-400 hover:bg-red-50"
-                        : "border-muted-foreground/30 hover:border-primary"
+                        : upcoming
+                        ? "border-muted-foreground/20 bg-muted/30 cursor-not-allowed"
+                        : "border-red-400 hover:bg-red-50 cursor-pointer"
                     }`}
-                    title={done ? "Označi kao aktivno" : "Označi kao završeno"}
+                    title={
+                      done     ? "Označi kao aktivno" :
+                      upcoming ? "Nije još moguće završiti — rok nije istekao" :
+                                 "Označi kao završeno"
+                    }
                   >
                     {done && <Check className="w-3 h-3" />}
                   </button>
@@ -345,13 +412,11 @@ export default function NotificationsClient({ notifications: initialData }: Prop
                         )}
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
-                        {/* Badge prioriteta */}
                         {!done && (
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${PRIORITY_COLORS[notif.priority]}`}>
                             {notif.priority}
                           </span>
                         )}
-                        {/* Obriši */}
                         <Button
                           variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground/50 hover:text-destructive"
                           onClick={() => handleDelete(notif.id)}
@@ -363,11 +428,11 @@ export default function NotificationsClient({ notifications: initialData }: Prop
 
                     {/* Meta info */}
                     <div className="flex flex-wrap items-center gap-3 mt-2">
-                      <span className={`flex items-center gap-1 text-xs ${
-                        overdue ? "text-red-600 font-medium" : upcoming ? "text-muted-foreground" : "text-emerald-700"
+                      <span className={`flex items-center gap-1 text-xs font-medium ${
+                        overdue ? "text-red-600" : upcoming ? "text-blue-600" : "text-emerald-700"
                       }`}>
                         <Clock className="w-3 h-3" />
-                        {overdue && "Isteklo · "}
+                        {overdue ? "Isteklo: " : upcoming ? "Rok: " : ""}
                         {formatRemindAt(notif.remindAt)}
                       </span>
                       <span className="flex items-center gap-1 text-xs text-muted-foreground">
