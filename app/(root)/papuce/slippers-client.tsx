@@ -343,7 +343,7 @@ export default function SlippersClient({ slippers: initialSlippers }: Props) {
                               <button
                                 onClick={() => { setEditVariantId(slipper.id); setEditQty(String(slipper.qty)); }}
                                 className={`text-lg font-bold tabular-nums cursor-pointer hover:opacity-70 transition-opacity ${
-                                  slipper.qty === 0 ? "text-muted-foreground/40 line-through" : slipper.qty <= 2 ? "text-orange-600" : "text-foreground"
+                                  slipper.qty === 0 ? "text-red-500 font-bold" : "text-foreground"
                                 }`}
                                 title="Klikni za izmjenu količine (admin)"
                               >
@@ -428,10 +428,7 @@ export default function SlippersClient({ slippers: initialSlippers }: Props) {
           {/* Legenda */}
           <div className="px-4 py-3 border-t bg-muted/20 flex flex-wrap gap-4 text-xs text-muted-foreground">
             <span className="flex items-center gap-1.5">
-              <span className="font-bold text-orange-600">3</span> — malo na stanju (≤2)
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="font-bold text-muted-foreground/40 line-through">0</span> — rasprodano
+              <span className="font-bold text-red-500">0</span> — rasprodano
             </span>
             <span>Klikni na broj za izmjenu zalihe (admin PIN)</span>
             <span><Minus className="w-3 h-3 inline" /> — označi prodaju (radnik PIN)</span>

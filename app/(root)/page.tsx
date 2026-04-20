@@ -78,8 +78,8 @@ export default async function Home() {
         year: now.getFullYear(),
       },
     }),
-    // Papuče sa malo na stanju (≤2 para, nije 0)
-    prisma.slipperVariant.count({ where: { qty: { gt: 0, lte: 2 } } }),
+    // Papuče sa 0 na stanju (rasprodane)
+    prisma.slipperVariant.count({ where: { qty: 0 } }),
     // Sljedeći vikend (subota)
     prisma.cycleStart.findFirst({ orderBy: { createdAt: "desc" } }),
     // Interne narudžbine na čekanju
@@ -122,7 +122,7 @@ export default async function Home() {
     {
       href: "/papuce",
       label: "Papuče",
-      description: lowStockSlippers > 0 ? `${lowStockSlippers} malo na stanju` : "Zalihe uredne",
+      description: lowStockSlippers > 0 ? `${lowStockSlippers} rasprodanih` : "Sve na stanju",
       icon: Footprints,
       color: "bg-purple-50 text-purple-600 border-purple-100",
       alert: lowStockSlippers > 0,

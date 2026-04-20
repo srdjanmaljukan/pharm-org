@@ -101,12 +101,11 @@ export default function PinModal({
           ))}
         </div>
 
-        {/* Skriveni input (fokusiran, prima unos) */}
+        {/* Skriveni input — inputMode none sprječava mobilnu tastaturu, onKeyDown prima unos sa fizičke tastature */}
         <Input
           ref={inputRef}
           type="password"
-          inputMode="numeric"
-          pattern="[0-9]*"
+          inputMode="none"
           maxLength={6}
           value={pin}
           onChange={(e) => {
@@ -114,7 +113,22 @@ export default function PinModal({
             setPin(val);
             setError("");
           }}
-          onKeyDown={handleKeyDown}
+          onKeyDown={(e) => {
+            if (e.key >= "0" && e.key <= "9") {
+              e.preventDefault();
+              if (pin.length < 6) {
+                setPin((p) => p + e.key);
+                setError("");
+              }
+            } else if (e.key === "Backspace") {
+              e.preventDefault();
+              setPin((p) => p.slice(0, -1));
+            } else if (e.key === "Enter") {
+              handleSubmit();
+            } else if (e.key === "Escape") {
+              onCancel();
+            }
+          }}
           className="opacity-0 absolute pointer-events-none"
           aria-label="PIN unos"
           autoComplete="off"

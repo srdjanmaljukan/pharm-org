@@ -274,7 +274,7 @@ export default function OrdersClient({ orders: initialOrders, distributors }: Pr
                 value={form.personName}
                 onChange={(e) => setForm((f) => ({ ...f, personName: e.target.value }))}
                 placeholder="Opciono"
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); document.getElementById("distributor")?.focus(); }}}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); document.getElementById("note")?.focus(); }}}
               />
             </div>
             <div className="space-y-1">
@@ -283,6 +283,7 @@ export default function OrdersClient({ orders: initialOrders, distributors }: Pr
                 id="distributor"
                 value={form.distributor}
                 onChange={(e) => setForm((f) => ({ ...f, distributor: e.target.value }))}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); document.getElementById("note")?.focus(); }}}
                 className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
               >
                 <option value="">— Odaberi dobavljača —</option>
