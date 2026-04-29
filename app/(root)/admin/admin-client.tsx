@@ -3,11 +3,14 @@
 import { useState } from "react";
 import { WorkerRole } from "@/lib/generated/prisma";
 import {
-  createWorker, updateWorker,
-  deactivateWorker, activateWorker,
+  createWorker,
+  updateWorker,
+  deactivateWorker,
+  activateWorker,
 } from "@/lib/actions/worker.actions";
 import {
-  createDistributor, deleteDistributor,
+  createDistributor,
+  deleteDistributor,
 } from "@/lib/actions/distributor.actions";
 import PinModal, { VerifiedWorker } from "@/components/shared/pin-modal";
 import { Button } from "@/components/ui/button";
@@ -15,10 +18,26 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Table, TableBody, TableCell,
-  TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
-import { UserPlus, Pencil, UserX, UserCheck, Lock, ShieldCheck, Plus, X, Truck } from "lucide-react";
+import {
+  UserPlus,
+  Pencil,
+  UserX,
+  UserCheck,
+  Lock,
+  ShieldCheck,
+  Plus,
+  X,
+  Truck,
+} from "lucide-react";
+import { saveMailTemplate } from "@/lib/actions/reclamation.actions";
+import { Mail } from "lucide-react";
 
 type Worker = {
   id: string;
@@ -33,10 +52,19 @@ type Distributor = {
   name: string;
 };
 
+type MailTemplate = {
+  id: string;
+  distributorName: string;
+  toEmail: string;
+  subject: string;
+  bodyTemplate: string;
+};
+
 type Props = {
   workers: Worker[];
   distributors: Distributor[];
   currentUserId: string;
+  templates: MailTemplate[];
 };
 
 type FormState = {
@@ -46,16 +74,32 @@ type FormState = {
   role: WorkerRole;
 };
 
-const emptyForm: FormState = { name: "", pin: "", confirmPin: "", role: WorkerRole.RADNIK };
+const emptyForm: FormState = {
+  name: "",
+  pin: "",
+  confirmPin: "",
+  role: WorkerRole.RADNIK,
+};
 
 // ─── Komponenta ───────────────────────────────────────────────────────────────
 
-export default function AdminClient({ workers: initialWorkers, distributors: initialDistributors, currentUserId }: Props) {
-  const [workers, setWorkers]           = useState<Worker[]>(initialWorkers);
-  const [distributors, setDistributors] = useState<Distributor[]>(initialDistributors);
+export default function AdminClient({
+  workers: initialWorkers,
+  distributors: initialDistributors,
+  currentUserId,
+  templates: initialTemplates,
+}: Props) {
+  const [workers, setWorkers] = useState<Worker[]>(initialWorkers);
+  const [distributors, setDistributors] =
+    useState<Distributor[]>(initialDistributors);
   const [newDistributor, setNewDistributor] = useState("");
-  const [distError, setDistError]       = useState("");
-  const [distLoading, setDistLoading]   = useState(false);
+  const [distError, setDistError] = useState("");
+  const [distLoading, setDistLoading] = useState(false);
+  const [templates, setTemplates] = useState<MailTemplate[]>(initialTemplates);
+  const [editingTemplate, setEditingTemplate] = useState<string | null>(null);
+  const [templateForm, setTemplateForm] = useState({ toEmail: "", subject: "", bodyTemplate: "" });
+  const [templateLoading, setTemplateLoading] = useState(false);
+  const [templateError, setTemplateError] = useState("");
 
   // Admin verifikacija — ko je ušao u panel
   const [adminWorker, setAdminWorker] = useState<VerifiedWorker | null>(null);
@@ -109,7 +153,10 @@ export default function AdminClient({ workers: initialWorkers, distributors: ini
   // ── Forma ──────────────────────────────────────────────────────────────────
 
   const handleEdit = (worker: Worker) => {
-    if (!adminWorker) { setAdminPinOpen(true); return; }
+    if (!adminWorker) {
+      setAdminPinOpen(true);
+      return;
+    }
     setEditingId(worker.id);
     setForm({ name: worker.name, pin: "", confirmPin: "", role: worker.role });
     setFormError("");
@@ -118,7 +165,10 @@ export default function AdminClient({ workers: initialWorkers, distributors: ini
   };
 
   const handleNewWorker = () => {
-    if (!adminWorker) { setAdminPinOpen(true); return; }
+    if (!adminWorker) {
+      setAdminPinOpen(true);
+      return;
+    }
     setEditingId(null);
     setForm(emptyForm);
     setFormError("");
@@ -126,17 +176,23 @@ export default function AdminClient({ workers: initialWorkers, distributors: ini
   };
 
   const handleFormSubmit = () => {
-    if (!adminWorker) { setAdminPinOpen(true); return; }
+    if (!adminWorker) {
+      setAdminPinOpen(true);
+      return;
+    }
 
     if (!form.name.trim() || form.name.trim().length < 2) {
-      setFormError("Ime mora imati najmanje 2 karaktera."); return;
+      setFormError("Ime mora imati najmanje 2 karaktera.");
+      return;
     }
     if (!editingId || form.pin) {
       if (!/^\d{4,6}$/.test(form.pin)) {
-        setFormError("PIN mora biti broj od 4 do 6 cifara."); return;
+        setFormError("PIN mora biti broj od 4 do 6 cifara.");
+        return;
       }
       if (form.pin !== form.confirmPin) {
-        setFormError("PIN-ovi se ne podudaraju."); return;
+        setFormError("PIN-ovi se ne podudaraju.");
+        return;
       }
     }
 
@@ -151,8 +207,15 @@ export default function AdminClient({ workers: initialWorkers, distributors: ini
   };
 
   const handleToggleActive = (worker: Worker) => {
-    if (!adminWorker) { setAdminPinOpen(true); return; }
-    setPendingAction({ type: "toggle", workerId: worker.id, activate: !worker.isActive });
+    if (!adminWorker) {
+      setAdminPinOpen(true);
+      return;
+    }
+    setPendingAction({
+      type: "toggle",
+      workerId: worker.id,
+      activate: !worker.isActive,
+    });
     setActionPinOpen(true);
   };
 
@@ -194,8 +257,8 @@ export default function AdminClient({ workers: initialWorkers, distributors: ini
           prev.map((w) =>
             w.id === pendingAction.workerId
               ? { ...w, isActive: pendingAction.activate }
-              : w
-          )
+              : w,
+          ),
         );
         showSuccess(result.message);
       }
@@ -213,8 +276,14 @@ export default function AdminClient({ workers: initialWorkers, distributors: ini
   // ── Dobavljači ─────────────────────────────────────────────────────────────
 
   const handleAddDistributor = () => {
-    if (!newDistributor.trim()) { setDistError("Naziv je obavezan."); return; }
-    if (!adminWorker) { setAdminPinOpen(true); return; }
+    if (!newDistributor.trim()) {
+      setDistError("Naziv je obavezan.");
+      return;
+    }
+    if (!adminWorker) {
+      setAdminPinOpen(true);
+      return;
+    }
     confirmAddDistributor(adminWorker);
   };
 
@@ -224,8 +293,10 @@ export default function AdminClient({ workers: initialWorkers, distributors: ini
     const result = await createDistributor(newDistributor.trim());
     if (result.success) {
       setDistributors((prev) =>
-        [...prev, { id: Date.now().toString(), name: newDistributor.trim() }]
-          .sort((a, b) => a.name.localeCompare(b.name))
+        [
+          ...prev,
+          { id: Date.now().toString(), name: newDistributor.trim() },
+        ].sort((a, b) => a.name.localeCompare(b.name)),
       );
       setNewDistributor("");
       showSuccess(result.message);
@@ -236,7 +307,10 @@ export default function AdminClient({ workers: initialWorkers, distributors: ini
   };
 
   const handleDeleteDistributor = (id: string, name: string) => {
-    if (!adminWorker) { setAdminPinOpen(true); return; }
+    if (!adminWorker) {
+      setAdminPinOpen(true);
+      return;
+    }
     if (!confirm(`Ukloniti dobavljača "${name}"?`)) return;
     deleteDistributorConfirmed(id);
   };
@@ -249,19 +323,38 @@ export default function AdminClient({ workers: initialWorkers, distributors: ini
     }
   };
 
-  const activeWorkers   = workers.filter((w) => w.isActive);
+  const handleSaveTemplate = async (distributorName: string) => {
+    if (!adminWorker) { setAdminPinOpen(true); return; }
+    setTemplateLoading(true);
+    const result = await saveMailTemplate({ distributorName, ...templateForm });
+    if (result.success) {
+      showSuccess(result.message);
+      setTemplates((prev) => {
+        const exists = prev.find((t) => t.distributorName === distributorName);
+        if (exists) return prev.map((t) => t.distributorName === distributorName ? { ...t, ...templateForm } : t);
+        return [...prev, { id: Date.now().toString(), distributorName, ...templateForm }];
+      });
+      setEditingTemplate(null);
+    } else {
+      setTemplateError(result.message);
+    }
+    setTemplateLoading(false);
+  };
+
+  const activeWorkers = workers.filter((w) => w.isActive);
   const inactiveWorkers = workers.filter((w) => !w.isActive);
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
     <div className="max-w-4xl mx-auto py-8 px-4 space-y-6">
-
       {/* Zaglavlje */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold">Admin panel</h1>
-          <p className="text-sm text-muted-foreground">Upravljanje radnicima i podešavanjima</p>
+          <p className="text-sm text-muted-foreground">
+            Upravljanje radnicima i podešavanjima
+          </p>
         </div>
 
         {/* Status admin sesije */}
@@ -271,7 +364,11 @@ export default function AdminClient({ workers: initialWorkers, distributors: ini
             Prijavljen kao {adminWorker.name}
           </div>
         ) : (
-          <Button variant="outline" size="sm" onClick={() => setAdminPinOpen(true)}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setAdminPinOpen(true)}
+          >
             <Lock className="w-4 h-4 mr-1.5" />
             Admin prijava
           </Button>
@@ -315,7 +412,9 @@ export default function AdminClient({ workers: initialWorkers, distributors: ini
                   <Input
                     id="name"
                     value={form.name}
-                    onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, name: e.target.value }))
+                    }
                     placeholder="npr. Marija Nikolić"
                   />
                 </div>
@@ -324,7 +423,12 @@ export default function AdminClient({ workers: initialWorkers, distributors: ini
                   <select
                     id="role"
                     value={form.role}
-                    onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as WorkerRole }))}
+                    onChange={(e) =>
+                      setForm((f) => ({
+                        ...f,
+                        role: e.target.value as WorkerRole,
+                      }))
+                    }
                     className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
                   >
                     <option value={WorkerRole.RADNIK}>Radnik</option>
@@ -332,14 +436,21 @@ export default function AdminClient({ workers: initialWorkers, distributors: ini
                   </select>
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="pin">PIN {editingId && "(ostavi prazno da zadržiš stari)"}</Label>
+                  <Label htmlFor="pin">
+                    PIN {editingId && "(ostavi prazno da zadržiš stari)"}
+                  </Label>
                   <Input
                     id="pin"
                     type="password"
                     inputMode="numeric"
                     maxLength={6}
                     value={form.pin}
-                    onChange={(e) => setForm((f) => ({ ...f, pin: e.target.value.replace(/\D/g, "") }))}
+                    onChange={(e) =>
+                      setForm((f) => ({
+                        ...f,
+                        pin: e.target.value.replace(/\D/g, ""),
+                      }))
+                    }
                     placeholder="4–6 cifara"
                   />
                 </div>
@@ -351,16 +462,34 @@ export default function AdminClient({ workers: initialWorkers, distributors: ini
                     inputMode="numeric"
                     maxLength={6}
                     value={form.confirmPin}
-                    onChange={(e) => setForm((f) => ({ ...f, confirmPin: e.target.value.replace(/\D/g, "") }))}
+                    onChange={(e) =>
+                      setForm((f) => ({
+                        ...f,
+                        confirmPin: e.target.value.replace(/\D/g, ""),
+                      }))
+                    }
                     placeholder="Ponovi PIN"
                   />
                 </div>
               </div>
-              {formError && <p className="text-sm text-destructive">{formError}</p>}
+              {formError && (
+                <p className="text-sm text-destructive">{formError}</p>
+              )}
               <div className="flex gap-2 pt-1">
-                <Button variant="outline" size="sm" onClick={resetForm} disabled={loading}>Odustani</Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={resetForm}
+                  disabled={loading}
+                >
+                  Odustani
+                </Button>
                 <Button size="sm" onClick={handleFormSubmit} disabled={loading}>
-                  {loading ? "Čuvanje..." : editingId ? "Sačuvaj izmjene" : "Kreiraj radnika"}
+                  {loading
+                    ? "Čuvanje..."
+                    : editingId
+                      ? "Sačuvaj izmjene"
+                      : "Kreiraj radnika"}
                 </Button>
               </div>
             </CardContent>
@@ -370,7 +499,9 @@ export default function AdminClient({ workers: initialWorkers, distributors: ini
         {/* Tabela aktivnih */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Aktivni radnici ({activeWorkers.length})</CardTitle>
+            <CardTitle className="text-base">
+              Aktivni radnici ({activeWorkers.length})
+            </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             <Table>
@@ -387,11 +518,13 @@ export default function AdminClient({ workers: initialWorkers, distributors: ini
                   <TableRow key={worker.id}>
                     <TableCell className="font-medium">{worker.name}</TableCell>
                     <TableCell>
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                        worker.role === WorkerRole.ADMIN
-                          ? "bg-purple-100 text-purple-800"
-                          : "bg-gray-100 text-gray-700"
-                      }`}>
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                          worker.role === WorkerRole.ADMIN
+                            ? "bg-purple-100 text-purple-800"
+                            : "bg-gray-100 text-gray-700"
+                        }`}
+                      >
                         {worker.role === WorkerRole.ADMIN ? "Admin" : "Radnik"}
                       </span>
                     </TableCell>
@@ -400,10 +533,21 @@ export default function AdminClient({ workers: initialWorkers, distributors: ini
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
-                        <Button size="sm" variant="ghost" onClick={() => handleEdit(worker)} title="Izmijeni">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleEdit(worker)}
+                          title="Izmijeni"
+                        >
                           <Pencil className="w-4 h-4" />
                         </Button>
-                        <Button size="sm" variant="ghost" onClick={() => handleToggleActive(worker)} title="Deaktiviraj" className="text-destructive hover:text-destructive">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleToggleActive(worker)}
+                          title="Deaktiviraj"
+                          className="text-destructive hover:text-destructive"
+                        >
                           <UserX className="w-4 h-4" />
                         </Button>
                       </div>
@@ -412,7 +556,10 @@ export default function AdminClient({ workers: initialWorkers, distributors: ini
                 ))}
                 {activeWorkers.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                    <TableCell
+                      colSpan={4}
+                      className="text-center text-muted-foreground py-8"
+                    >
                       Nema aktivnih radnika.
                     </TableCell>
                   </TableRow>
@@ -442,12 +589,19 @@ export default function AdminClient({ workers: initialWorkers, distributors: ini
                 <TableBody>
                   {inactiveWorkers.map((worker) => (
                     <TableRow key={worker.id} className="opacity-60">
-                      <TableCell className="font-medium line-through">{worker.name}</TableCell>
+                      <TableCell className="font-medium line-through">
+                        {worker.name}
+                      </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {worker.role === WorkerRole.ADMIN ? "Admin" : "Radnik"}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button size="sm" variant="ghost" onClick={() => handleToggleActive(worker)} title="Reaktiviraj">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleToggleActive(worker)}
+                          title="Reaktiviraj"
+                        >
                           <UserCheck className="w-4 h-4" />
                         </Button>
                       </TableCell>
@@ -475,22 +629,38 @@ export default function AdminClient({ workers: initialWorkers, distributors: ini
             <div className="flex gap-2">
               <Input
                 value={newDistributor}
-                onChange={(e) => { setNewDistributor(e.target.value); setDistError(""); }}
+                onChange={(e) => {
+                  setNewDistributor(e.target.value);
+                  setDistError("");
+                }}
                 placeholder="Naziv dobavljača"
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddDistributor(); }}}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleAddDistributor();
+                  }
+                }}
               />
-              <Button onClick={handleAddDistributor} disabled={distLoading} size="sm">
+              <Button
+                onClick={handleAddDistributor}
+                disabled={distLoading}
+                size="sm"
+              >
                 <Plus className="w-4 h-4 mr-1.5" />
                 Dodaj
               </Button>
             </div>
-            {distError && <p className="text-sm text-destructive">{distError}</p>}
+            {distError && (
+              <p className="text-sm text-destructive">{distError}</p>
+            )}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Lista dobavljača ({distributors.length})</CardTitle>
+            <CardTitle className="text-base">
+              Lista dobavljača ({distributors.length})
+            </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             {distributors.length === 0 ? (
@@ -505,7 +675,8 @@ export default function AdminClient({ workers: initialWorkers, distributors: ini
                       <TableCell className="font-medium">{d.name}</TableCell>
                       <TableCell className="text-right">
                         <Button
-                          size="sm" variant="ghost"
+                          size="sm"
+                          variant="ghost"
                           className="text-muted-foreground hover:text-destructive"
                           onClick={() => handleDeleteDistributor(d.id, d.name)}
                         >
@@ -519,6 +690,102 @@ export default function AdminClient({ workers: initialWorkers, distributors: ini
             )}
           </CardContent>
         </Card>
+      </div>
+
+      {/* ── Mail šabloni za reklamacije ───────────────────────────────────── */}
+      <div className="space-y-4">
+        <h2 className="font-medium flex items-center gap-2">
+          <Mail className="w-4 h-4" />
+          Mail šabloni za reklamacije
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Dostupni placeholderi:{" "}
+          <code className="bg-muted px-1 rounded text-xs">{"{{invoiceNumber}}"}</code>{", "}
+          <code className="bg-muted px-1 rounded text-xs">{"{{items}}"}</code>{", "}
+          <code className="bg-muted px-1 rounded text-xs">{"{{date}}"}</code>
+        </p>
+
+        {["Sopharma", "Centralni Magacin"].map((distName) => {
+          const existing = templates.find((t: MailTemplate) => t.distributorName === distName);
+          const isEditing = editingTemplate === distName;
+
+          return (
+            <Card key={distName}>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base">{distName}</CardTitle>
+                  {!isEditing && (
+                    <Button
+                      size="sm" variant="outline"
+                      onClick={() => {
+                        if (!adminWorker) { setAdminPinOpen(true); return; }
+                        setEditingTemplate(distName);
+                        setTemplateForm({
+                          toEmail: existing?.toEmail || "",
+                          subject: existing?.subject || "",
+                          bodyTemplate: existing?.bodyTemplate || "",
+                        });
+                        setTemplateError("");
+                      }}
+                    >
+                      {existing ? "Izmijeni" : "Postavi šablon"}
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+              {isEditing ? (
+                <CardContent className="space-y-3">
+                  <div className="space-y-1">
+                    <Label>Email adresa</Label>
+                    <Input
+                      value={templateForm.toEmail}
+                      onChange={(e) => setTemplateForm((f) => ({ ...f, toEmail: e.target.value }))}
+                      placeholder="reklamacije@sopharma.ba"
+                      type="email"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Naslov maila</Label>
+                    <Input
+                      value={templateForm.subject}
+                      onChange={(e) => setTemplateForm((f) => ({ ...f, subject: e.target.value }))}
+                      placeholder="Reklamacija faktura {{invoiceNumber}}"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Tekst maila</Label>
+                    <textarea
+                      value={templateForm.bodyTemplate}
+                      onChange={(e) => setTemplateForm((f) => ({ ...f, bodyTemplate: e.target.value }))}
+                      rows={8}
+                      placeholder={"Poštovani,\n\nReklamiramo sljedeće artikle sa fakture {{invoiceNumber}} od {{date}}:\n\n{{items}}\n\nS poštovanjem,\nApoteka"}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-y"
+                    />
+                  </div>
+                  {templateError && <p className="text-sm text-destructive">{templateError}</p>}
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={() => { setEditingTemplate(null); setTemplateError(""); }}>
+                      Odustani
+                    </Button>
+                    <Button size="sm" onClick={() => handleSaveTemplate(distName)} disabled={templateLoading}>
+                      {templateLoading ? "Čuvanje..." : "Sačuvaj"}
+                    </Button>
+                  </div>
+                </CardContent>
+              ) : existing ? (
+                <CardContent className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Na: <span className="font-medium text-foreground">{existing.toEmail}</span></p>
+                  <p className="text-sm text-muted-foreground">Naslov: {existing.subject}</p>
+                  <p className="text-xs bg-muted rounded p-2 mt-2 line-clamp-3 whitespace-pre-line">{existing.bodyTemplate}</p>
+                </CardContent>
+              ) : (
+                <CardContent>
+                  <p className="text-sm text-muted-foreground italic">Šablon nije postavljen.</p>
+                </CardContent>
+              )}
+            </Card>
+          );
+        })}
       </div>
 
       {/* PIN modal — ulaz u admin panel */}
@@ -536,8 +803,12 @@ export default function AdminClient({ workers: initialWorkers, distributors: ini
         title="Potvrdi akciju"
         description="Upiši admin PIN da potvrdiš izmjenu."
         onSuccess={handleActionPinSuccess}
-        onCancel={() => { setActionPinOpen(false); setPendingAction(null); }}
+        onCancel={() => {
+          setActionPinOpen(false);
+          setPendingAction(null);
+        }}
       />
+
     </div>
   );
 }

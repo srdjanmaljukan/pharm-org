@@ -48,6 +48,12 @@ enum ReclamationStatus {
   Odbijena
 }
 
+enum ReclamationDistributorType {
+  Sopharma        // faktura + serija + rok
+  CentralniMagacin // faktura + serija + rok + mail
+  Ostalo          // faktura + artikal + količina + razlog
+}
+
 // Dan vikenda
 // ─────────────────────────────────────────────
 // AUTH MODELI (NextAuth)
@@ -122,8 +128,9 @@ model Worker {
   orderHistory        OrderHistory[]       @relation("OrderHistoryWorker")
   internalOrders      InternalOrder[]      @relation("InternalOrderUpdatedBy")
   internalOrderHistory InternalOrderHistory[] @relation("InternalOrderHistoryWorker")
-  reclamations        Reclamation[]        @relation("ReclamationUpdatedBy")
-  reclamationHistory  ReclamationHistory[] @relation("ReclamationHistoryWorker")
+  reclamations         Reclamation[]        @relation("ReclamationCreatedBy")
+  updatedReclamations  Reclamation[]        @relation("ReclamationUpdatedBy")
+  reclamationHistory   ReclamationHistory[] @relation("ReclamationHistoryWorker")
   notifications       Notification[]       @relation("NotificationCreatedBy")
   updatedNotifications Notification[]      @relation("NotificationUpdatedBy")
   targetSales         TargetSaleEntry[]    @relation("TargetSaleEntryBy")
@@ -210,18 +217,33 @@ model InternalOrderHistory {
 // ─────────────────────────────────────────────
 
 model Reclamation {
-  id          String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  productName String
-  distributor String
-  qty         Int
-  reason      String
-  note        String?
-  status      ReclamationStatus @default(Otvorena)
-  createdAt   DateTime          @default(now()) @db.Timestamp(6)
-  updatedAt   DateTime          @updatedAt
-  updatedById String            @db.Uuid
-  updatedBy   Worker            @relation("ReclamationUpdatedBy", fields: [updatedById], references: [id])
-  history     ReclamationHistory[]
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  distributorName  String            // naziv dobavljača (iz liste ili custom)
+  distributorType  ReclamationDistributorType @default(Ostalo)
+  invoiceNumber    String?           // broj fakture
+  reason           String?           // opšti razlog (za Ostalo tip)
+  note             String?
+  status           ReclamationStatus @default(Otvorena)
+  createdAt        DateTime          @default(now()) @db.Timestamp(6)
+  updatedAt        DateTime          @updatedAt
+  createdById      String            @db.Uuid
+  createdBy        Worker            @relation("ReclamationCreatedBy", fields: [createdById], references: [id])
+  updatedById      String?           @db.Uuid
+  updatedBy        Worker?           @relation("ReclamationUpdatedBy", fields: [updatedById], references: [id])
+  items            ReclamationItem[]
+  history          ReclamationHistory[]
+}
+
+// Svaki artikal u reklamaciji
+model ReclamationItem {
+  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reclamationId  String      @db.Uuid
+  productName    String
+  qty            Int
+  reason         String?     // razlog po artiklu (za Ostalo tip)
+  batchNumber    String?     // broj serije (Sopharma/CM)
+  expiryDate     String?     // rok trajanja (Sopharma/CM)
+  reclamation    Reclamation @relation(fields: [reclamationId], references: [id], onDelete: Cascade)
 }
 
 model ReclamationHistory {
@@ -233,6 +255,16 @@ model ReclamationHistory {
   changedById   String            @db.Uuid
   reclamation   Reclamation       @relation(fields: [reclamationId], references: [id], onDelete: Cascade)
   changedBy     Worker            @relation("ReclamationHistoryWorker", fields: [changedById], references: [id])
+}
+
+model ReclamationMailTemplate {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  distributorName  String   @unique
+  toEmail          String
+  subject          String
+  bodyTemplate     String   // tekst sa placeholder-ima: {{invoiceNumber}}, {{items}}, {{date}}
+  createdAt        DateTime @default(now()) @db.Timestamp(6)
+  updatedAt        DateTime @updatedAt
 }
 
 // ─────────────────────────────────────────────

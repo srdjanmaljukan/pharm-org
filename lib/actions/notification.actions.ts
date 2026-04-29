@@ -43,7 +43,7 @@ export async function createNotification(formData: FormData) {
       return { success: false, message: "Nedostaju obavezna polja." };
     }
 
-    const remindAt = new Date(`${remindDate}T${remindTime}:00`);
+    const remindAt = new Date(`${remindDate}T${remindTime}:00+02:00`);
 
     await prisma.notification.create({
       data: {

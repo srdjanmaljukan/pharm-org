@@ -147,7 +147,7 @@ export default function NotificationsClient({ notifications: initialData }: Prop
       const result = await createNotification(fd);
       if (result.success) {
         // Dodaj odmah u lokalni state — bez čekanja na reload
-        const remindAt = new Date(`${form.remindDate}T${h}:${m}:00`);
+        const remindAt = new Date(`${form.remindDate}T${h}:${m}:00+02:00`);
         const newNotif: Notification = {
           id:          Date.now().toString(),
           title:       form.title.trim(),
