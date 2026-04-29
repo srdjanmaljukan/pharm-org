@@ -57,8 +57,9 @@ export default async function Home() {
     // Zadnjih 5 reklamacija
     prisma.reclamation.findMany({
       take: LIMIT,
-      where: { status: { not: "Riješena" } },
+      where: { status: { notIn: ["Riješena", "Odbijena"] } },
       orderBy: { createdAt: "desc" },
+      include: { items: { take: 2 } },
     }),
     // Aktivne notifikacije (rok istekao, nije završeno)
     prisma.notification.findMany({
@@ -321,8 +322,11 @@ export default async function Home() {
             {latestReclamations.map((rec) => (
               <div key={rec.id} className="px-4 py-3 flex items-center justify-between gap-3 hover:bg-muted/20 transition-colors">
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium truncate">{rec.productName}</p>
-                  <p className="text-xs text-muted-foreground">{rec.distributor} · {rec.reason}</p>
+                  <p className="text-sm font-medium truncate">{rec.distributorName}</p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {rec.invoiceNumber ? `Faktura: ${rec.invoiceNumber}` : "—"}
+                    {rec.items[0] ? ` · ${rec.items[0].productName}${rec.items.length > 1 ? ` +${rec.items.length - 1}` : ""}` : ""}
+                  </p>
                 </div>
                 <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${reclamationStatusColors[rec.status] || "bg-gray-100 text-gray-700"}`}>
                   {rec.status}
